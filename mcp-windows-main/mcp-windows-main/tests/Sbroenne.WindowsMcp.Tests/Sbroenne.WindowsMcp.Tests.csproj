@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- Must match main project's DPI awareness to get correct Screen.Bounds coordinates -->
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors />
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Disable XML documentation warnings for test code -->
+    <!-- Disable CA1707 to allow underscore naming convention in test methods (Given_When_Then pattern) -->
+    <NoWarn>$(NoWarn);CS1591;CA1707</NoWarn>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Sbroenne.WindowsMcp.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="SharpToken" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.analyzers" PrivateAssets="all" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Xunit.SkippableFact" />
+    <PackageReference Include="Bogus" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Sbroenne.WindowsMcp\Sbroenne.WindowsMcp.csproj" />
+    <ProjectReference Include="..\..\src\Sbroenne.WindowsMcp.Cli\Sbroenne.WindowsMcp.Cli.csproj" />
+    <ProjectReference Include="..\Sbroenne.WindowsMcp.Cli.TestFixture\Sbroenne.WindowsMcp.Cli.TestFixture.csproj" />
+    <!--
+      The WinUI 3 harness is launched as a separate process by ModernTestHarnessFixture, which locates
+      it by probing the harness project's own bin directory. We only need it *built*, not referenced:
+      ReferenceOutputAssembly=false keeps its assembly and Windows App SDK dependencies out of the test
+      output, while still guaranteeing it exists on a fresh clone.
+    -->
+    <ProjectReference Include="..\Sbroenne.WindowsMcp.ModernHarness\Sbroenne.WindowsMcp.ModernHarness.csproj"
+                      ReferenceOutputAssembly="false"
+                      SkipGetTargetFrameworkProperties="true"
+                      Private="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

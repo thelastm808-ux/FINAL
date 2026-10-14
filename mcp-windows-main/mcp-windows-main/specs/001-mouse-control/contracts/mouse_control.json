@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mouse_control",
+  "description": "Control mouse cursor, perform clicks, drags, and scroll operations on Windows desktop. Note: Cannot send input to elevated (admin) processes due to Windows UIPI restrictions.",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["move", "click", "double_click", "right_click", "middle_click", "drag", "scroll"],
+      "description": "The mouse action to perform"
+    },
+    "x": {
+      "type": "integer",
+      "description": "X coordinate in screen pixels. For move/click/scroll: target position. Omit to use current cursor position for click actions."
+    },
+    "y": {
+      "type": "integer",
+      "description": "Y coordinate in screen pixels. For move/click/scroll: target position. Omit to use current cursor position for click actions."
+    },
+    "start_x": {
+      "type": "integer",
+      "description": "Starting X coordinate for drag operation"
+    },
+    "start_y": {
+      "type": "integer",
+      "description": "Starting Y coordinate for drag operation"
+    },
+    "end_x": {
+      "type": "integer",
+      "description": "Ending X coordinate for drag operation"
+    },
+    "end_y": {
+      "type": "integer",
+      "description": "Ending Y coordinate for drag operation"
+    },
+    "button": {
+      "type": "string",
+      "enum": ["left", "right", "middle"],
+      "default": "left",
+      "description": "Mouse button for drag operations. Default: left"
+    },
+    "direction": {
+      "type": "string",
+      "enum": ["up", "down", "left", "right"],
+      "description": "Scroll direction. Required for scroll action."
+    },
+    "amount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 1,
+      "description": "Number of scroll wheel clicks. Default: 1"
+    },
+    "modifiers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["ctrl", "shift", "alt"]
+      },
+      "uniqueItems": true,
+      "description": "Modifier keys to hold during click operations (e.g., ['ctrl'] for Ctrl+click)"
+    }
+  },
+  "required": ["action"],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "action": { "const": "move" } }
+      },
+      "then": {
+        "required": ["x", "y"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "action": { "const": "drag" } }
+      },
+      "then": {
+        "required": ["start_x", "start_y", "end_x", "end_y"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "action": { "const": "scroll" } }
+      },
+      "then": {
+        "required": ["direction"]
+      }
+    }
+  ],
+  "examples": [
+    {
+      "action": "move",
+      "x": 500,
+      "y": 300
+    },
+    {
+      "action": "click",
+      "x": 800,
+      "y": 600
+    },
+    {
+      "action": "click",
+      "modifiers": ["ctrl"]
+    },
+    {
+      "action": "double_click",
+      "x": 100,
+      "y": 200
+    },
+    {
+      "action": "right_click"
+    },
+    {
+      "action": "drag",
+      "start_x": 100,
+      "start_y": 100,
+      "end_x": 300,
+      "end_y": 300
+    },
+    {
+      "action": "scroll",
+      "direction": "down",
+      "amount": 3
+    }
+  ],
+  "response": {
+    "type": "object",
+    "properties": {
+      "success": {
+        "type": "boolean",
+        "description": "Whether the operation completed successfully"
+      },
+      "final_position": {
+        "type": "object",
+        "properties": {
+          "x": { "type": "integer" },
+          "y": { "type": "integer" }
+        },
+        "required": ["x", "y"],
+        "description": "Cursor position after the operation"
+      },
+      "window_title": {
+        "type": "string",
+        "description": "Title of the window under the cursor"
+      },
+      "error": {
+        "type": "string",
+        "description": "Error message if operation failed"
+      },
+      "error_code": {
+        "type": "string",
+        "enum": [
+          "invalid_action",
+          "invalid_coordinates", 
+          "coordinates_out_of_bounds",
+          "missing_required_parameter",
+          "invalid_scroll_direction",
+          "elevated_process_target",
+          "secure_desktop_active",
+          "input_blocked",
+          "send_input_failed",
+          "operation_timeout",
+          "window_lost_during_drag",
+          "unexpected_error"
+        ],
+        "description": "Standardized error code for programmatic handling"
+      },
+      "error_details": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "Additional context (e.g., valid_bounds for out-of-bounds errors)"
+      }
+    },
+    "required": ["success", "final_position"]
+  }
+}

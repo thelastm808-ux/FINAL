@@ -1,0 +1,34 @@
+{% extends "main.html" %}
+
+<!-- Marketing landing page: custom hero above the standard page content. -->
+
+{% block htmltitle %}
+  <title>Windows MCP Server — Put Your AI to Work in Windows</title>
+{% endblock %}
+
+{% block content %}
+<section class="mcp-hero">
+  <h1 class="mcp-hero__title">Put your AI to work in Windows</h1>
+  <p class="mcp-hero__subtitle">
+    Fill forms. Read tables. Save files.
+    Give the AI assistant you already use direct access to your Windows apps.
+  </p>
+  <p class="mcp-hero__subtitle">
+    Work with real buttons and fields. Save tokens with focused reads.
+    Use screenshots for visual tasks.
+  </p>
+  <div class="mcp-hero__actions">
+    <a class="md-button md-button--primary" href="{{ 'installation/' | url }}">
+      Get started
+    </a>
+    <a class="md-button" href="{{ 'features/' | url }}">
+      See what you can do
+    </a>
+  </div>
+</section>
+
+<!-- Render the page body directly instead of the parent content block, so
+     Material does not inject a duplicate "Home" heading above the markdown
+     content. The hero above already provides the page's single h1. -->
+{{ page.content }}
+{% endblock %}

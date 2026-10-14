@@ -1,0 +1,265 @@
+<html>
+<head>
+    <script type="module">
+        import { store } from "/plugins/_commands/webui/commands-slash-store.js";
+    </script>
+</head>
+<body>
+    <div x-data>
+        <template x-if="$store.commandsSlash">
+            <div class="commands-slash-menu-root" x-create="$store.commandsSlash.onMount()" x-destroy="$store.commandsSlash.cleanup()">
+                <div class="commands-slash-menu" x-show="$store.commandsSlash.menuVisible" x-transition.opacity.duration.120ms>
+                    <template x-if="$store.commandsSlash.loading">
+                        <div class="commands-slash-loading">
+                            <x-icon class="spinning" name="progress_activity"></x-icon>
+                            <span x-text="$store.commandsSlash.loadingLabel"></span>
+                        </div>
+                    </template>
+
+                    <template x-if="!$store.commandsSlash.loading && $store.commandsSlash.filteredItems.length > 0">
+                        <div class="commands-slash-results">
+                            <template x-for="(item, index) in $store.commandsSlash.filteredItems" :key="item.id || item.path">
+                                <button type="button"
+                                        class="commands-slash-item"
+                                        :class="{ active: index === $store.commandsSlash.selectedIndex }"
+                                        @mouseenter="$store.commandsSlash.selectedIndex = index"
+                                        @mousedown.prevent
+                                        @click.prevent="$store.commandsSlash.applySelectedItem(item)">
+                                    <div class="commands-slash-item-header">
+                                        <div class="commands-slash-item-name"
+                                             :class="$store.commandsSlash.mode === 'reference' ? ['is-reference', `is-${item.tone}`] : ''">
+                                            <template x-if="$store.commandsSlash.mode === 'reference'">
+                                                <x-icon class="commands-reference-icon" :name="item.icon"></x-icon>
+                                            </template>
+                                            <span class="commands-slash-prefix" x-text="$store.commandsSlash.mode === 'reference' ? '@' : '/'"></span><span x-text="$store.commandsSlash.mode === 'reference' ? item.label : item.name"></span>
+                                        </div>
+                                        <span class="commands-slash-scope"
+                                              :class="$store.commandsSlash.mode === 'reference' ? ['is-reference', `is-${item.tone}`] : ''"
+                                              x-text="$store.commandsSlash.mode === 'reference' ? item.kind : item.source_scope_label"></span>
+                                    </div>
+                                    <div class="commands-slash-item-description" x-text="item.description"></div>
+                                    <template x-if="$store.commandsSlash.mode !== 'reference' && item.argument_hint">
+                                        <div class="commands-slash-item-hint" x-text="item.argument_hint"></div>
+                                    </template>
+                                </button>
+                            </template>
+                        </div>
+                    </template>
+
+                    <template x-if="!$store.commandsSlash.loading && $store.commandsSlash.filteredItems.length === 0">
+                        <div class="commands-slash-empty">
+                            <div class="commands-slash-empty-copy">
+                                <span x-text="$store.commandsSlash.emptyLabel"></span>
+                            </div>
+                            <template x-if="$store.commandsSlash.mode !== 'reference'">
+                                <button type="button"
+                                        class="commands-slash-create"
+                                        @mousedown.prevent
+                                        @click.prevent="$store.commandsSlash.openCreateCommand()">
+                                    <x-icon name="add"></x-icon>
+                                    <span x-text="$store.commandsSlash.emptyStateLabel"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <style>
+        .commands-slash-menu-root {
+            position: relative;
+            z-index: 30;
+        }
+
+        .commands-slash-menu {
+            margin-bottom: 0.55rem;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--color-panel) 96%, var(--color-background));
+            box-shadow: 0 14px 32px rgba(0, 0, 0, 0.14);
+            overflow: hidden;
+        }
+
+        .commands-slash-results {
+            max-height: 18rem;
+            overflow-y: auto;
+        }
+
+        .commands-slash-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.32rem;
+            width: 100%;
+            padding: var(--spacing-sm) 0.8rem;
+            border: 0;
+            border-bottom: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+            background: transparent;
+            color: inherit;
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .commands-slash-item:last-child {
+            border-bottom: 0;
+        }
+
+        .commands-slash-item.active,
+        .commands-slash-item:hover {
+            background: color-mix(in srgb, var(--color-highlight) 10%, transparent);
+        }
+
+        .commands-slash-item-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .commands-slash-item-name {
+            font-weight: 600;
+        }
+
+        .commands-slash-item-name.is-reference {
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .commands-reference-icon {
+            margin-right: 0.38rem;
+            font-size: 1.08rem;
+            color: var(--color-highlight);
+            font-variation-settings: 'FILL' 0, 'wght' 450, 'GRAD' 0, 'opsz' 20;
+        }
+
+        .commands-slash-prefix {
+            color: var(--color-highlight);
+        }
+
+        .commands-slash-item-name.is-reference .commands-slash-prefix {
+            color: inherit;
+        }
+
+        .commands-slash-scope {
+            padding: 0.18rem 0.45rem;
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--color-highlight) 12%, transparent);
+            font-size: 0.72rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .commands-slash-scope.is-reference {
+            padding: 0;
+            background: transparent;
+        }
+
+        .commands-slash-item-name.is-reference,
+        #chat-input .composer-reference {
+            color: var(--color-text);
+        }
+
+        #chat-input .composer-reference {
+            display: inline;
+            font-size: 0;
+            font-weight: 600;
+            line-height: inherit;
+            white-space: nowrap;
+            vertical-align: baseline;
+        }
+
+        #chat-input .composer-reference::before {
+            display: inline-block;
+            color: var(--color-highlight);
+            font-family: 'Material Symbols Outlined';
+            margin-right: 0.22rem;
+            font-size: 1rem;
+            font-weight: normal;
+            line-height: 1;
+            vertical-align: -0.1em;
+            font-variation-settings: 'FILL' 0, 'wght' 450, 'GRAD' 0, 'opsz' 20;
+        }
+
+        #chat-input .composer-reference::after {
+            content: attr(data-label);
+            font-family: var(--font-family-main, "Rubik", Arial, Helvetica, sans-serif);
+            font-size: 1rem;
+            line-height: inherit;
+            vertical-align: baseline;
+        }
+
+        #chat-input .composer-reference.is-folder::before { content: 'folder'; }
+        #chat-input .composer-reference.is-file::before { content: 'draft'; }
+        #chat-input .composer-reference.is-agent::before { content: 'person'; }
+        #chat-input .composer-reference.is-skill::before { content: 'auto_awesome'; }
+        #chat-input .composer-reference.is-mcp::before { content: 'hub'; }
+
+        html:not(.material-icons-ready) #chat-input .composer-reference::before {
+            visibility: hidden;
+        }
+
+        .commands-slash-item-description {
+            color: var(--color-text-secondary);
+            font-size: 0.86rem;
+            line-height: 1.4;
+        }
+
+        .commands-slash-item-hint {
+            color: var(--color-text-secondary);
+            font-family: "Roboto Mono", monospace;
+            font-size: 0.77rem;
+            opacity: 0.85;
+        }
+
+        .commands-slash-empty,
+        .commands-slash-loading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.9rem 1rem;
+        }
+
+        .commands-slash-empty-copy,
+        .commands-slash-loading {
+            color: var(--color-text-secondary);
+        }
+
+        .commands-slash-create {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--color-border);
+            border-radius: 999px;
+            background: transparent;
+            color: var(--color-text);
+            cursor: pointer;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .spinning {
+            animation: commands-slash-spin 1s linear infinite;
+        }
+
+        @keyframes commands-slash-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 640px) {
+            .commands-slash-empty,
+            .commands-slash-loading {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .commands-slash-create {
+                justify-content: center;
+            }
+        }
+    </style>
+</body>
+</html>

@@ -1,0 +1,179 @@
+using System.ComponentModel;
+using System.Runtime.Versioning;
+using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
+using Sbroenne.WindowsMcp.Tools;
+
+namespace Sbroenne.WindowsMcp.Automation.Tools;
+
+/// <summary>
+/// MCP tool for finding UI elements in Windows applications.
+/// </summary>
+[SupportedOSPlatform("windows")]
+[McpServerToolType]
+public static partial class UIFindTool
+{
+    /// <summary>
+    /// Find UI elements. REQUIRED before clicking elements you haven't located yet. Returns observed IDs for elementId targeting with ui_click/ui_type, plus names, meaningful automation IDs, types, and coordinates.
+    /// Each bounded scan has a budget of 2000 visited UIA nodes, including nonmatching nodes.
+    /// For a large or incomplete search, use exactDepth=1 to discover immediate children, then
+    /// use an observed container id as parentElementId to search inside it. Repeat shallow discovery
+    /// inside that container if needed. Name/type/automationId filters choose matches; unmatched nodes still count.
+    /// Keywords: find, locate, search element, discover, inspect, look for, get element, query UI,
+    /// element by name, control, accessibility tree, where is.
+    /// </summary>
+    /// <remarks>
+    /// Finds UI elements by name, type, ID, or other criteria. Returns observed IDs, names, meaningful automation IDs, types, and click coordinates.
+    /// To act on a result, pass its returned id as elementId to ui_click or ui_type. Selectors and foundIndex are discovery-only; use them here to disambiguate before acting.
+    /// Use coordinates with mouse_control only as a fallback.
+    /// You MUST call this tool or ui_click for every UI operation - never skip tool calls.
+    /// REQUIRED: windowHandle (from window_management tool).
+    /// For Electron/Chromium, visible text and ARIA labels usually show up here as element names.
+    /// If unvisited nodes remain at the scan limit, search_incomplete means absence or uniqueness could not be established.
+    /// Narrow the visited area with a known parentElementId or exactDepth=1, not just more match filters.
+    /// Increasing timeoutMs does not increase this limit. Use ui_read with a discovered elementId when only its text is needed.
+    /// Positive timeoutMs limits both retries and scanning. No new scan starts at or after the deadline;
+    /// an in-progress Windows accessibility call can still overrun it. An interrupted scan reports timeout,
+    /// not absence or uniqueness. timeoutMs=0 performs one node-bounded scan without a time deadline.
+    /// </remarks>
+    /// <param name="windowHandle">Window handle as decimal string (from window_management 'find' or 'list'). REQUIRED.</param>
+    /// <param name="name">Element name (exact match, case-insensitive). For Electron apps and Chromium browsers, this is often the visible label or ARIA label.</param>
+    /// <param name="nameContains">Substring to search in element names (case-insensitive). Preferred for dialog buttons - e.g., 'Don\\'t save'.</param>
+    /// <param name="namePattern">Regex pattern to match element names. Use for complex matching like 'Button [0-9]+' or 'Save|Cancel'.</param>
+    /// <param name="controlType">Control type filter (Button, Edit, Text, CheckBox, ComboBox, Menu, MenuItem, etc.)</param>
+    /// <param name="automationId">AutomationId for precise matching (exact match, most reliable).</param>
+    /// <param name="className">Element class name (e.g., 'Chrome_WidgetWin_1' for Chromium, 'Button' for Win32).</param>
+    /// <param name="exactDepth">Match only at this depth and stop descending there. Use 1 to discover immediate children of the window or parentElementId, then search inside an observed container.</param>
+    /// <param name="foundIndex">Return the Nth match (1-based, default: 1). Use 2 for second match, etc.</param>
+    /// <param name="includeChildren">Include child elements in response (default: false).</param>
+    /// <param name="sortByProminence">Sort results by size (largest first). Useful for disambiguation.</param>
+    /// <param name="inRegion">Filter to region: 'x,y,width,height' in screen coordinates.</param>
+    /// <param name="nearElement">Find elements near this elementId (results sorted by distance).</param>
+    /// <param name="visibleOnly">Exclude off-screen elements. Default (unset): excluded for Chromium/Edge/Electron (which expose many hidden nodes), included elsewhere. Set false to include hidden nodes.</param>
+    /// <param name="contentViewOnly">Prefer matches marked as meaningful content. Default (unset): true for Chromium/Edge/Electron, false elsewhere; falls back to other matches if nothing is found. This filters matches, not traversal: nonmatching nodes still count toward the scan limit. Ignored for exactDepth searches.</param>
+    /// <param name="parentElementId">Limit the search to a known parent element from ui_find/ui_snapshot.</param>
+    /// <param name="scope">Search root: window (default) or active_dialog. Use active_dialog after opening a modal or native file dialog.</param>
+    /// <param name="requireUnique">Fail with ambiguity details when more than one element matches. Default: false.</param>
+    /// <param name="enabledOnly">Exclude disabled elements when true.</param>
+    /// <param name="timeoutMs">Search time budget in milliseconds (default: 5000). Stops between Windows accessibility calls; an in-progress call can overrun the budget. Zero performs one scan without a time deadline.</param>
+    /// <param name="includeDiagnostics">Include diagnostics (timing, query, elements scanned) in response. Default: false.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>A call result containing a text content block with the JSON payload listing found elements and their properties (including element IDs). <c>IsError</c> reflects operation success.</returns>
+    [McpServerTool(Name = "ui_find", Title = "Find UI Elements", Destructive = false, OpenWorld = false)]
+    public static async partial Task<CallToolResult> ExecuteAsync(
+        string windowHandle,
+        [DefaultValue(null)] string? name,
+        [DefaultValue(null)] string? nameContains,
+        [DefaultValue(null)] string? namePattern,
+        [DefaultValue(null)] string? controlType,
+        [DefaultValue(null)] string? automationId,
+        [DefaultValue(null)] string? className,
+        [DefaultValue(null)] int? exactDepth,
+        [DefaultValue(1)] int foundIndex,
+        [DefaultValue(false)] bool includeChildren,
+        [DefaultValue(false)] bool sortByProminence,
+        [DefaultValue(null)] string? inRegion,
+        [DefaultValue(null)] string? nearElement,
+        [DefaultValue(null)] bool? visibleOnly,
+        [DefaultValue(null)] bool? contentViewOnly,
+        [DefaultValue(null)] string? parentElementId,
+        [DefaultValue("window")] string? scope,
+        [DefaultValue(false)] bool requireUnique,
+        [DefaultValue(null)] bool? enabledOnly,
+        [DefaultValue(5000)] int timeoutMs,
+        [DefaultValue(false)] bool includeDiagnostics,
+        CancellationToken cancellationToken)
+    {
+        const string actionName = "find";
+
+        if (string.IsNullOrWhiteSpace(windowHandle))
+        {
+            return WindowsToolsBase.FailResult(
+                "windowHandle is required. Get it from window_management(action='find').");
+        }
+
+        var foundIndexError = WindowsToolsBase.ValidateFoundIndex(foundIndex);
+        if (foundIndexError is not null)
+        {
+            return foundIndexError;
+        }
+
+        try
+        {
+            var query = new ElementQuery
+            {
+                WindowHandle = windowHandle,
+                Name = name,
+                NameContains = nameContains,
+                NamePattern = namePattern,
+                ControlType = controlType,
+                AutomationId = automationId,
+                ClassName = className,
+                ExactDepth = exactDepth,
+                FoundIndex = Math.Max(1, foundIndex),
+                IncludeChildren = includeChildren,
+                SortByProminence = sortByProminence,
+                InRegion = inRegion,
+                NearElement = nearElement,
+                VisibleOnly = visibleOnly,
+                ContentViewOnly = contentViewOnly,
+                ParentElementId = parentElementId,
+                Scope = scope,
+                RequireUnique = requireUnique,
+                EnabledOnly = enabledOnly,
+                TimeoutMs = Math.Clamp(timeoutMs, 0, 60000)
+            };
+
+            var result = await WindowsToolsBase.UIAutomationService.FindElementsAsync(query, cancellationToken);
+            return WindowsToolsBase.ToCallToolResult(result, includeDiagnostics);
+        }
+        catch (Exception ex)
+        {
+            return WindowsToolsBase.ErrorCallToolResult(actionName, ex);
+        }
+    }
+
+    /// <summary>Compatibility overload for the original window-scoped find surface.</summary>
+    public static Task<CallToolResult> ExecuteAsync(
+        string windowHandle,
+        string? name,
+        string? nameContains,
+        string? namePattern,
+        string? controlType,
+        string? automationId,
+        string? className,
+        int? exactDepth,
+        int foundIndex,
+        bool includeChildren,
+        bool sortByProminence,
+        string? inRegion,
+        string? nearElement,
+        bool? visibleOnly,
+        bool? contentViewOnly,
+        int timeoutMs,
+        bool includeDiagnostics,
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(
+            windowHandle,
+            name,
+            nameContains,
+            namePattern,
+            controlType,
+            automationId,
+            className,
+            exactDepth,
+            foundIndex,
+            includeChildren,
+            sortByProminence,
+            inRegion,
+            nearElement,
+            visibleOnly,
+            contentViewOnly,
+            null,
+            "window",
+            false,
+            null,
+            timeoutMs,
+            includeDiagnostics,
+            cancellationToken);
+}

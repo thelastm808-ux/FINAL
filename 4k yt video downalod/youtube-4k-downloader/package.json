@@ -1,0 +1,10 @@
+{
+  "name": "youtube-4k-downloader",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n BACKEND,FRONTEND -c blue,green \"cd backend && .venv\\\\Scripts\\\\python -m uvicorn app.main:app --reload --port 8000\" \"cd frontend && npm run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

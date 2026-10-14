@@ -1,0 +1,371 @@
+name: Windows UI Integration Tests
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Desktop tests to run
+        required: true
+        type: choice
+        default: all
+        options:
+          - all
+          - keyboard
+          - notepad
+          - mouse
+          - window
+          - app-launch
+          - ui-automation
+          - click
+          - save
+          - winui
+          - electron
+          - chromium
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: windows-ui-integration-tests
+  cancel-in-progress: false
+
+env:
+  AZURE_RESOURCE_GROUP: rg-windows-mcp-runner
+  AZURE_VM_NAME: vm-windows-mcp-runner
+
+jobs:
+  start-runner:
+    name: Start Windows UI runner
+    if: >-
+      vars.WINDOWS_UI_RUNNER_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false))
+    runs-on: ubuntu-latest
+    environment: windows-ui-runner
+    steps:
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Start VM
+        run: >-
+          az vm start
+          --resource-group "$AZURE_RESOURCE_GROUP"
+          --name "$AZURE_VM_NAME"
+
+      - name: Set four-hour shutdown watchdog
+        shell: pwsh
+        run: |
+          $shutdownTime = (Get-Date).ToUniversalTime().AddHours(4).ToString("HHmm")
+          az vm auto-shutdown `
+            --resource-group $env:AZURE_RESOURCE_GROUP `
+            --name $env:AZURE_VM_NAME `
+            --time $shutdownTime
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to set the VM auto-shutdown watchdog."
+          }
+
+      # `az vm start` only proves the VM powered on. The runner itself is launched by the
+      # WindowsMcp-GitHub-Runner scheduled task, which has an *interactive logon* trigger so the
+      # tests get a real desktop. If nobody logs on (for example when autologon is disabled), the
+      # task never fires, no runner registers, and the integration job sits queued until GitHub
+      # discards it 24 hours later. Fail fast here instead, with an actionable message.
+      - name: Wait for the self-hosted runner to come online
+        shell: pwsh
+        env:
+          RUNNER_ONLINE_TIMEOUT_MINUTES: '20'
+          PROBE_CALL_TIMEOUT_SECONDS: '180'
+        run: |
+          $probePath = Join-Path $env:RUNNER_TEMP 'probe-windows-ui-runner.ps1'
+          @'
+          $listener = Get-Process Runner.Listener -ErrorAction SilentlyContinue
+          $hasSession = @(quser 2>$null | Select-String -Pattern '\sActive\s').Count -gt 0
+          if ($listener -and $hasSession) { Write-Output 'RUNNER_ONLINE' }
+          elseif ($hasSession) { Write-Output 'SESSION_BUT_NO_LISTENER' }
+          else { Write-Output 'NO_INTERACTIVE_SESSION' }
+          '@ | Set-Content -Path $probePath -Encoding utf8
+
+          $deadline = (Get-Date).AddMinutes([int]$env:RUNNER_ONLINE_TIMEOUT_MINUTES)
+          $lastState = 'no probe completed'
+          $agentStatus = 'unknown'
+
+          # `az vm run-command` needs a responsive Azure guest agent. Ask the control plane whether
+          # the agent is Ready first: that call reads reported status and cannot hang on the guest,
+          # so a slow-booting VM is reported accurately instead of blocking a run-command call.
+          while ((Get-Date) -lt $deadline) {
+            $agentStatus = (az vm get-instance-view `
+              --resource-group $env:AZURE_RESOURCE_GROUP `
+              --name $env:AZURE_VM_NAME `
+              --query "instanceView.vmAgent.statuses[0].displayStatus" -o tsv | Out-String).Trim()
+
+            if ($LASTEXITCODE -eq 0 -and $agentStatus -eq 'Ready') {
+              Write-Host 'Azure guest agent is Ready.'
+              break
+            }
+
+            Write-Host "Guest agent not ready yet (status: $agentStatus). Retrying in 15s."
+            Start-Sleep -Seconds 15
+          }
+
+          while ((Get-Date) -lt $deadline) {
+            # Bound each call. A single `az vm run-command invoke` against an unresponsive agent has
+            # been observed to block for ~25 minutes; because the deadline is only checked between
+            # iterations, one such call silently blows the whole budget.
+            $probeOutput = timeout $env:PROBE_CALL_TIMEOUT_SECONDS az vm run-command invoke `
+              --resource-group $env:AZURE_RESOURCE_GROUP `
+              --name $env:AZURE_VM_NAME `
+              --command-id RunPowerShellScript `
+              --scripts "@$probePath" `
+              --query "value[].message" -o tsv
+
+            if ($LASTEXITCODE -eq 124) {
+              Write-Host "Probe call exceeded $env:PROBE_CALL_TIMEOUT_SECONDS s and was abandoned. Retrying."
+            }
+            elseif ($LASTEXITCODE -eq 0 -and $probeOutput) {
+              $lastState = ($probeOutput | Out-String).Trim()
+              if ($lastState -match 'RUNNER_ONLINE') {
+                Write-Host 'Runner is online and attached to an interactive desktop session.'
+                exit 0
+              }
+            }
+
+            Write-Host "Runner not ready yet (state: $lastState). Retrying in 30s."
+            Start-Sleep -Seconds 30
+          }
+
+          throw @"
+          The Windows UI runner did not come online within $env:RUNNER_ONLINE_TIMEOUT_MINUTES minutes.
+          Last guest agent status: $agentStatus
+          Last probe state: $lastState
+
+          A guest agent status other than Ready means the VM never finished booting far enough for
+          Azure to reach it, so no probe could run. Starting the VM has been observed taking ~25
+          minutes during Azure-side slowness; if that is the cause, re-running the job is enough.
+
+          NO_INTERACTIVE_SESSION means the VM booted to a login screen and nobody logged on, so the
+          WindowsMcp-GitHub-Runner logon-triggered scheduled task never fired. Verify that autologon
+          is enabled for the runner account on $env:AZURE_VM_NAME.
+
+          SESSION_BUT_NO_LISTENER means someone is logged on but Runner.Listener is not running.
+          Check C:\actions-runner\_diag on the VM and the state of the scheduled task.
+          "@
+
+  integration-tests:
+    name: Windows UI integration suite
+    needs: start-runner
+    runs-on: [self-hosted, windows, x64, windows-ui]
+    timeout-minutes: 180
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      MCP_TEST_CHROME: '1'
+      MCP_TEST_DESKTOP_INPUT: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python for Lockfile Checks
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Validate npm Lockfile Portability
+        timeout-minutes: 2
+        run: python scripts/validate_npm_lockfiles.py
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/Sbroenne.WindowsMcp.Tests/Integration/ElectronHarness/package-lock.json
+
+      - name: Verify interactive desktop prerequisites
+        shell: pwsh
+        run: |
+          if (-not [Environment]::UserInteractive) {
+            throw "The runner is not attached to an interactive Windows session."
+          }
+
+          $explorer = Get-Process explorer -ErrorAction SilentlyContinue |
+            Where-Object SessionId -eq (Get-Process -Id $PID).SessionId |
+            Select-Object -First 1
+          if (-not $explorer) {
+            throw "Explorer is not running in the runner session."
+          }
+
+          $edge = Join-Path ${env:ProgramFiles(x86)} "Microsoft\Edge\Application\msedge.exe"
+          $chrome = Join-Path $env:ProgramFiles "Google\Chrome\Application\chrome.exe"
+          foreach ($browser in @($edge, $chrome)) {
+            if (-not (Test-Path $browser)) {
+              throw "Required browser not found: $browser"
+            }
+          }
+
+      - name: Restore
+        run: dotnet restore Sbroenne.WindowsMcp.sln
+
+      - name: Build test project
+        run: >-
+          dotnet build tests/Sbroenne.WindowsMcp.Tests/Sbroenne.WindowsMcp.Tests.csproj
+          --configuration Debug
+          --no-restore
+
+      - name: Publish self-contained WinUI harness
+        run: >-
+          dotnet publish tests/Sbroenne.WindowsMcp.ModernHarness/Sbroenne.WindowsMcp.ModernHarness.csproj
+          --configuration Debug
+          --runtime win-x64
+          --no-restore
+
+      - name: Install Electron harness
+        shell: pwsh
+        working-directory: tests/Sbroenne.WindowsMcp.Tests/Integration/ElectronHarness
+        run: |
+          npm ci --no-audit --no-fund --ignore-scripts=false --foreground-scripts
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to install the Electron harness."
+          }
+
+          $electron = "node_modules\electron\dist\electron.exe"
+          if (-not (Test-Path $electron)) {
+            node node_modules/electron/install.js
+          }
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $electron)) {
+            throw "Electron installation did not produce $electron."
+          }
+
+      - name: Run desktop integration tests
+        shell: pwsh
+        env:
+          TEST_SCOPE: ${{ github.event_name == 'pull_request' && 'all' || inputs.scope }}
+        run: |
+          $filters = @{
+            all = "FullyQualifiedName~Integration&Category!=SnapshotBenchmark"
+            keyboard = "FullyQualifiedName~Integration.Keyboard"
+            notepad = "FullyQualifiedName~Integration.NotepadTyping"
+            mouse = "FullyQualifiedName~Integration.Mouse|FullyQualifiedName~Integration.DpiAwareness|FullyQualifiedName~Integration.ModifierKey|FullyQualifiedName~Integration.MultiMonitor"
+            window = "FullyQualifiedName~Integration.Window|FullyQualifiedName~Integration.AppLaunch"
+            "app-launch" = "FullyQualifiedName~Integration.AppLaunchHandoff"
+            "ui-automation" = "FullyQualifiedName~Integration.UI|FullyQualifiedName~Integration.AnnotatedScreenshot|FullyQualifiedName~Integration.CaptureAnnotated|FullyQualifiedName~Integration.SaveTests|FullyQualifiedName~Integration.TestHarnessInput"
+            save = "FullyQualifiedName~Integration.SaveTests|FullyQualifiedName~Integration.ElectronHarness.ElectronSaveTests"
+            click = "FullyQualifiedName~Integration.UIClick|FullyQualifiedName~Integration.UIAutomationClickClosesWindow|FullyQualifiedName~Integration.CliSnapshotContinuity|FullyQualifiedName~Integration.WinUI.WinUIClick|FullyQualifiedName~Integration.UIBatchAndFusion"
+            winui = "FullyQualifiedName~Integration.WinUI"
+            electron = "FullyQualifiedName~Integration.ElectronHarness"
+            chromium = "FullyQualifiedName~Integration.ChromiumBrowser"
+          }
+
+          $filter = $filters[$env:TEST_SCOPE]
+          if ($env:TEST_SCOPE -in @('all', 'notepad')) {
+            $env:MCP_TEST_NOTEPAD = '1'
+          }
+          if (-not $filter) {
+            throw "Unsupported test scope: $env:TEST_SCOPE"
+          }
+
+          dotnet test tests/Sbroenne.WindowsMcp.Tests/Sbroenne.WindowsMcp.Tests.csproj `
+            --configuration Debug `
+            --no-build `
+            --filter $filter `
+            --logger "trx;LogFileName=windows-ui-$($env:TEST_SCOPE).trx" `
+            --blame-hang-timeout 15m `
+            --nologo `
+            -- RunConfiguration.MaxCpuCount=1
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows UI integration tests failed."
+          }
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-ui-results-${{ github.run_number }}
+          path: |
+            **/TestResults/*.trx
+            **/TestResults/editor-focus-*.png
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Clean up test applications
+        if: always()
+        shell: pwsh
+        run: |
+          Get-Process electron, chrome, msedge, notepad, calculatorapp -ErrorAction SilentlyContinue |
+            Where-Object SessionId -eq (Get-Process -Id $PID).SessionId |
+            ForEach-Object { Stop-Process -Id $_.Id -Force }
+
+  integration-gate:
+    name: PR integration tests
+    if: always()
+    needs: [start-runner, integration-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce integration result
+        shell: pwsh
+        env:
+          START_RESULT: ${{ needs.start-runner.result }}
+          TEST_RESULT: ${{ needs.integration-tests.result }}
+          PR_ACTOR: ${{ github.actor }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PR_IS_DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq "pull_request" -and
+              $env:PR_IS_DRAFT -ieq "true") {
+            Write-Host "Integration tests are deferred until the pull request is ready for review."
+            exit 0
+          }
+
+          if ($env:GITHUB_EVENT_NAME -eq "pull_request" -and
+              $env:PR_HEAD_REPOSITORY -ine $env:GITHUB_REPOSITORY) {
+            throw "Fork pull requests cannot execute untrusted code on the self-hosted runner. Move the reviewed commit to a repository branch before merging."
+          }
+
+          if ($env:GITHUB_EVENT_NAME -eq "pull_request" -and
+              $env:PR_ACTOR -ieq "dependabot[bot]") {
+            Write-Host "Integration tests are not run for Dependabot pull requests because they cannot access Azure credentials."
+            exit 0
+          }
+
+          if ($env:START_RESULT -ne "success" -or $env:TEST_RESULT -ne "success") {
+            throw "Windows UI integration tests did not pass (runner: $env:START_RESULT, tests: $env:TEST_RESULT)."
+          }
+
+  deallocate-runner:
+    name: Deallocate Windows UI runner
+    if: >-
+      always() &&
+      vars.WINDOWS_UI_RUNNER_ENABLED == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.actor != 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false))
+    needs: [start-runner, integration-tests]
+    runs-on: ubuntu-latest
+    environment: windows-ui-runner
+    steps:
+      - name: Azure login
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deallocate VM
+        run: >-
+          az vm deallocate
+          --resource-group "$AZURE_RESOURCE_GROUP"
+          --name "$AZURE_VM_NAME"

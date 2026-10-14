@@ -1,0 +1,9 @@
+name: _skills
+title: Skills
+description: Load skills into the current chat history.
+version: 1.0.0
+always_enabled: true
+settings_sections:
+  - agent
+per_project_config: true
+per_agent_config: true

@@ -1,0 +1,496 @@
+# Testing Instructions for mcp-windows
+
+## Testing Priority Order (SURGICAL TESTING FIRST)
+
+**For an MCP server, integration tests are the PRIMARY validation - unit tests have limited value.**
+
+**ALWAYS test surgically first - from most targeted to broadest:**
+
+1. **Build first** - Verify code compiles before any tests
+2. **Surgical integration tests** - Test ONLY the specific feature you modified (e.g., `--filter "FullyQualifiedName~Keyboard"`)
+3. **Related integration tests** - Test closely related functionality if surgical tests pass
+4. **Full integration test suite** - EXPENSIVE. Only after surgical tests pass and before committing
+5. **LLM tests** - VERY EXPENSIVE (cost money, take many minutes). Only when specifically requested
+
+**NEVER run the full integration test suite as the first step!** Run targeted tests for your changes first.
+
+**Unit tests are secondary** - they're useful for parsing logic, data transformations, and utilities, but they do NOT validate that the MCP server actually works with Windows.
+
+## Test Harnesses
+
+The shared Windows UI workflow allows one running workflow and one pending workflow.
+`cancel-in-progress: false` does not preserve multiple pending runs: a new trigger can
+replace an earlier pending validation. Coordinate PR creation, pushes to open PRs, and
+manual dispatches before using the shared runner. Do not cancel another owner's run.
+Wait until the entire group is empty, including VM deallocation, before the next
+owner publishes or dispatches work. A run starting is not permission to queue another.
+Do not mix queue policies across active branches: a trial of `queue: max` was accepted
+but canceled during runner startup when another branch submitted work. Changing the
+queue policy needs a separate coordinated rollout, not an assumption that work is safe.
+
+### Fresh CLI/MCP Usage Evaluations
+
+All model-driven tests and benchmarks must use `sbroenne/pytest-skill-engineering`,
+including controls-versus-screenshots comparisons and token/time measurements.
+Do not create separate Copilot SDK runners, model-session loops, or report systems.
+Keep app setup, owned-process cleanup, task fixtures, and independent result checks
+in this repository; use the framework for execution, evidence, usage, and reports.
+Add missing reusable features to the framework and pin the version containing them
+before live execution. Static charts and tables may read saved framework reports
+without repeating model calls.
+
+`tests/usage_evals/` is a separate pytest-skill-engineering consumer for learning whether and how
+Windows MCP should improve, and for finding reusable framework gaps. Do not copy or migrate the
+older LLM scenarios into it. See its README for current framework prerequisites and live-run gates.
+
+Its deterministic checks run without models or desktop access:
+
+```powershell
+uv run --project tests\usage_evals pytest tests\usage_evals\tests\unit -q
+```
+
+Live runs require separate approval of the model and execution budget, built CLI/MCP executables,
+and an exclusive interactive desktop. Prefer a disposable account; an existing profile requires
+explicit owner reservation and confirmation that Notepad has no work to preserve. Reports label
+that weaker isolation separately. They verify actual files and unchanged targets,
+record route and evidence limitations, and keep baseline/candidate outcomes separate. Collection
+must not launch applications or call a model. Do not count default-skipped live cases as coverage.
+
+### Electron Test Harness (Chromium/CEF Apps)
+
+**Location:** `tests/Sbroenne.WindowsMcp.Tests/Integration/ElectronHarness/`
+
+Tests UI automation against Electron/Chromium-based applications (like VS Code, Discord, Slack, etc.):
+- Button, checkbox, link, and input interactions
+- Text reading and element finding
+- Chromium accessibility tree navigation
+
+**Collection:** `[Collection("ElectronHarness")]`
+
+**Fixture:** `ElectronHarnessFixture.cs` - Launches Electron harness with `UseShellExecute = true` (required for Chromium to properly expose its accessibility tree)
+
+**IMPORTANT:** The Electron fixture uses `UseShellExecute = true` instead of redirecting output. This is intentional - Chromium requires a proper shell environment to initialize its accessibility support. Using `UseShellExecute = false` with output redirection causes the Document element to not be exposed to UI Automation.
+
+### WinForms Test Harness (Traditional Win32)
+
+**Location:** `tests/Sbroenne.WindowsMcp.Tests/Integration/TestHarness/`
+
+- `TestHarnessForm.cs` - Basic mouse/keyboard testing (clicks, drags, scrolls)
+- `UITestHarnessForm.cs` - Comprehensive UI controls (5 tabs, 20+ control types, dialogs)
+- `UITestHarnessFixture.cs` - xUnit fixture that launches WinForms harness in-process
+
+Mouse warmup requires a successful move and the same one-pixel tolerance as the position
+tests. Absolute input rounding can land one pixel away; exact equality in setup previously
+prevented 76 otherwise independent mouse checks from running on a local desktop.
+Focus acquisition uses the shared window activator and waits for each attempt to finish;
+it does not leave a timed-out activation task injecting input after setup has failed.
+
+**Collection:** `[Collection("UITestHarness")]`
+
+### WinUI 3 Test Harness (Modern Windows Apps)
+
+**Location:** `tests/Sbroenne.WindowsMcp.ModernHarness/`
+
+Modern WinUI 3 application that mirrors controls found in modern Windows apps like Notepad, Paint, and Word:
+- NavigationView with multiple pages (Home, Form Controls, List Controls, Editor, Dialogs, Mouse & Keyboard)
+- CommandBar with toolbar buttons (New, Open, Save, Cut, Copy, Paste)
+- Form controls: TextBox, PasswordBox, CheckBox, RadioButton, ComboBox, Slider, ToggleSwitch, ProgressBar
+- List controls: ListView, TreeView
+- Editor page with multiline TextBox (character/word/line counts)
+- Dialog testing: FileSavePicker, FileOpenPicker, FolderPicker, ContentDialog
+- Mouse & Keyboard testing: Click areas, scroll zones, drag detection
+- **State verification TextBlocks** with AutomationId for MCP tool verification
+
+**Building the WinUI 3 Harness:**
+```powershell
+# Build for ARM64
+dotnet build tests\Sbroenne.WindowsMcp.ModernHarness -c Debug -p:Platform=ARM64
+
+# Build for x64
+dotnet build tests\Sbroenne.WindowsMcp.ModernHarness -c Debug -p:Platform=x64
+```
+
+**Collection:** `[Collection("ModernTestHarness")]`
+
+**Fixture:** `ModernTestHarnessFixture.cs` - Launches harness as separate process, finds window handle
+
+`WinUITypeTests` verifies exact editor text after bulk Unicode input, individual-character
+input, virtual keys, and semantic text entry. It verifies focus and waits a bounded time
+for the actual text, rather than treating successful input dispatch as proof of delivery.
+Focus failures retain harness-window screenshots in the Windows UI workflow artifacts.
+
+Save tests must wait for their asynchronous dialog to appear and close it in `finally`.
+Use the fixture's owned-window cleanup, not optional response hints or an unguarded Escape.
+The shared fixture also closes leftover owned dialogs before bringing the harness forward
+and checks that the owner is enabled again. A leftover Save dialog previously accepted
+physical input while UI Automation still reported focus on the underlying editor.
+Passing these harness tests alone does not establish real Notepad correctness.
+
+### Chromium process cleanup
+
+Chromium cleanup retains handles to owned child processes before closing the parent window.
+Children must still exit if the parent exits first or closing the window throws. Cleanup failures
+are reported, not swallowed. Regression checks record process IDs and creation times before
+shutdown, and verify that an unrelated process is left alone.
+
+### Chromium date values
+
+`ChromiumDateReadTests` checks empty and populated dates through their individual
+month/day/year controls. Chromium can expose an empty or older parent value even
+when the page submits the edited date. Direct parent reads must report
+`pattern_not_supported`, and snapshots must omit that unverified parent value.
+The entry check reads every typed part and checks the page's own date output.
+Ordinary text fields must still return their empty or entered value.
+The guard inspects at most 16 raw descendants and one control-view level; it
+does not guess date order from translated labels or send corrective input.
+
+### Real Notepad typing
+
+`NotepadTypingTests` checks exact text in an owned, uniquely named Notepad document, including
+multiline text, tabs, Unicode, supplementary characters, and a text-chunk boundary. Bulk cases
+use the actual keyboard tool, including its timeout budget. A separate case sends individual
+characters without test-side delays. The test logs the installed Notepad version and closes only
+the process identified by its unique document window, checking the process creation time.
+
+Set `MCP_TEST_NOTEPAD=1` and `MCP_TEST_DESKTOP_INPUT=1` only on an exclusive approved desktop
+with no Notepad work to preserve. Never reset the user's Notepad profile. The dedicated Windows
+workflow enables this for `all` and `notepad`; ordinary local test runs skip it.
+
+Notepad 11.2607.14.0 reproduced repeated-character corruption with bulk Unicode input and with
+unpaced individual calls. Both 10ms and 50ms fixed pauses proved insufficient on long text.
+Layout-key trials also lost modifier state in the slow editor and were withdrawn. Shared keyboard
+typing now waits for a supported focused editor to show the expected insertion before sending
+the next Unicode character. Selection replacement and CR/LF/CRLF are accounted for, and surrogate
+pairs are acknowledged as complete characters, with their UTF-16 units dispatched separately at
+the same 50ms pace as other text. Observing a text change does not remove that pacing: immediate
+dispatch after observation also reproduced lost characters. A paired dispatch reproduced broken
+emoji despite retained focus. If acknowledgement times out, typing stops with an explicit error instead
+of continuing to flood the queue. Passwords and controls without readable text retain paced
+dispatch and return an observation warning. Live acknowledgement is limited to the tested
+`RichEditD2DPT` editor family: readable Excel cells and browser controls do not necessarily
+implement live insertion semantics. Other controls retain paced input and require independent
+readback. The Notepad tests assert that their editor is covered by acknowledgement.
+An unavailable or timed-out accessibility provider before dispatch falls back to paced input
+with the specific observation error in the returned warning. An acknowledgement failure after
+dispatch still stops input. Unsupported controls are not repeatedly probed within a text chunk.
+Test mixed long text, not repeated identical
+characters that can conceal corruption. The keyboard tool adds a per-character pacing allowance
+to its normal operation timeout; caller cancellation still stops typing.
+Do not equate successful `SendInput` with delivered text: retain independent exact readback.
+The Notepad tests preserve trailing spaces and blank lines in that comparison. Failures log
+readback before the success assertion; production errors report lengths and focus, not document text.
+
+Typing verification normalizes CR, LF, and CRLF because RichEdit reports different line endings.
+It must not trim extra lines, spaces, or altered characters. A failed post-input check reports
+`verification_failed` and asks for readback before retrying, not a blind repeat.
+
+Save tests cover `shortcut`, `save_as`, and `wait`. The default still sends Ctrl+S; a supplied
+path fills a dialog but does not retarget an already named document. Explicit `save_as` sends
+F12 in Word/PowerPoint and Ctrl+Shift+S elsewhere without first saving over the source.
+`wait` handles an already open owned dialog.
+The real Notepad copy test checks both destination content and the unchanged original.
+If filename input loses its observation because the dialog replaces the field, Save must still
+read the current field in the same owned dialog and require the entire requested path before
+confirming. A partial path or a changed directory must never be accepted; recovered observation
+failures are logged.
+
+`ExplicitRecoveryContractTests` guards the single-dispatch boundary without desktop access.
+The owned-dialog cases in `SaveTests` check that overwrite/error prompts remain open, receive
+no answer, and leave the original file unchanged. `OpenFileTests` checks that a changed filename
+is not rewritten and an unverified submission is not repeated. Run these live cases only on
+an exclusive desktop. Radio-button verification must not dispatch another activation after
+the first selection was sent; an unavailable pattern and a failed provider call are different cases.
+
+### PowerPoint discovery
+
+`scripts\tests\test_powerpoint_discovery.py` runs without a model. It requires an
+exclusive desktop, installed PowerPoint, and no existing PowerPoint process.
+Each case opens a fresh generated presentation. It checks the first snapshot,
+first search, and first whole-window text read. The CLI case finds a title and
+reads its observed ID from a separate command-line process. The edit case checks
+the saved presentation independently and verifies that the original is unchanged.
+
+Build both entry points, then run with the LLM test environment's Python:
+
+```powershell
+$env:MCP_TEST_DESKTOP_INPUT = "1"
+$env:MCP_TEST_POWERPOINT_SERVER = (Resolve-Path "src\Sbroenne.WindowsMcp\bin\Release\net10.0-windows10.0.22621.0\Sbroenne.WindowsMcp.exe").Path
+$env:MCP_TEST_POWERPOINT_CLI = (Resolve-Path "src\Sbroenne.WindowsMcp.Cli\bin\Release\net10.0-windows10.0.22621.0\wincli.exe").Path
+tests\Sbroenne.WindowsMcp.LLM.Tests\.venv\Scripts\python.exe -m unittest discover -s scripts\tests -p test_powerpoint_discovery.py -v
+```
+
+The UI Automation worker uses MTA, the Windows threading mode recommended for
+automation clients and event subscriptions. Add and remove each subscription on
+its owning worker; serialize these calls across workers. Remaining wait
+subscriptions must be removed before the worker exits, since MTA can outlive an
+individual worker thread.
+
+### Verification Pattern
+
+**Use our own MCP tools for verification, NOT FlaUI or direct property access:**
+
+```csharp
+// ✅ Correct: Use MCP tools to verify state
+var found = await _automationService.FindElementsAsync(new ElementQuery
+{
+    WindowHandle = _windowHandle,
+    AutomationId = "ButtonClicksDisplay",
+    RequireUnique = true,
+});
+Assert.True(found.Success);
+var target = Assert.Single(found.Items!);
+var readResult = await _automationService.GetTextAsync(
+    target.Id, _windowHandle, includeChildren: false);
+Assert.Equal("3", readResult.Text);
+
+// ❌ Wrong: Direct property access (not available for out-of-process apps)
+// Assert.Equal(3, _fixture.Form.ButtonClickCount);
+```
+
+## Integration Tests (PRIMARY)
+
+**Location:** `tests/Sbroenne.WindowsMcp.Tests/Integration/`
+
+**Integration tests are the REAL tests for an MCP server.** They verify that:
+- Tools actually interact with Windows correctly
+- Keyboard/mouse input is received by real applications
+- UI automation finds and manipulates real elements
+- Window management works with actual windows
+
+**ALL integration tests MUST pass. No exceptions.**
+
+- Never dismiss integration test failures as "expected" or "transient"
+- If integration tests fail, investigate and fix the root cause
+- Only tests explicitly marked `[Skip]` (e.g., requiring 3+ monitors) are acceptable to skip
+- If tests fail due to timing/window focus issues, that's a BUG to fix, not an acceptable state
+
+### Desktop-Input Tests Are Opt-In (`MCP_TEST_DESKTOP_INPUT`)
+
+Tests that inject **real** mouse/keyboard input (the `MouseIntegrationTests` and `KeyboardIntegrationTests`
+collections, plus `TestHarnessInputTests`) drive `SendInput` against the live desktop. That input is **global to the active input
+desktop** — the test harness window limits *where clicks land*, but it cannot stop the run from
+commandeering the cursor and keyboard focus for the whole session. Running them on a shared or
+interactive machine hijacks your desktop.
+
+They therefore **skip by default** and only run when `MCP_TEST_DESKTOP_INPUT=1` is set (mirroring the
+existing `MCP_TEST_CHROME` opt-in). The dedicated Windows UI CI runner sets this variable, so full
+coverage still runs in CI on a disposable, interactive VM. Locally, only opt in on a machine you can
+let the tests take over:
+
+```powershell
+$env:MCP_TEST_DESKTOP_INPUT = '1'
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~Integration.Mouse" -v q
+```
+
+### Surgical Integration Testing (REQUIRED FIRST STEP)
+
+**Always start with surgical tests targeting your specific changes:**
+
+For Save-dialog work on the dedicated desktop runner, dispatch the Windows UI
+Integration Tests workflow with `scope=save`. This runs both WinForms and Electron
+Save tests. Pull requests still require the full desktop suite before merge.
+
+For application-launch handoff work, use `scope=app-launch`. The owned receiver fixture
+checks early/late exits and actual received requests through MCP and CLI, without browsers,
+accounts, or user documents. `scope=window` also includes these tests. Do not run the GUI
+fixture on a shared local desktop.
+
+The owned fixture publishes JSON by atomic rename. Read its immutable state through
+`FixtureState.OpenRead`, which shares delete access while a publisher's rename handle
+may still be open. `FixtureStateTests` reproduces that sharing requirement without a GUI.
+Unexpected receiver exceptions fail the test with stderr rather than opening a .NET
+error dialog; do not hide such dialogs in production window matching.
+
+For click response work, use `scope=click`. This includes owned MCP/CLI response
+regressions, disappearing targets, identity continuity, WinUI clicks, and batch
+snapshot checks. Do not run these desktop tests on a shared local machine.
+
+```powershell
+# Test specific feature (e.g., after modifying keyboard functionality)
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~Keyboard" -v q
+
+# Test specific harness
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~WinFormsHarness" -v q
+
+# Test Electron harness (Chromium accessibility)
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~UIAutomationElectronTests" -v q
+
+# Test mouse functionality
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~Mouse" -v q
+
+# Test window management
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~Window" -v q
+
+# Test UI automation
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~UIAutomation" -v q
+```
+
+### Full Integration Tests (EXPENSIVE - RUN LAST)
+
+**Only run the full suite after surgical tests pass:**
+
+```powershell
+dotnet test tests\Sbroenne.WindowsMcp.Tests -c Release --filter "FullyQualifiedName~Integration"
+```
+
+Run all tests (integration + unit):
+```powershell
+dotnet test tests\Sbroenne.WindowsMcp.Tests -c Release
+```
+
+### Test Collections
+
+Tests that interact with windows use collections to prevent parallel execution conflicts:
+- `[Collection("WindowManagement")]` - Window-related tests
+- `[Collection("UITestHarness")]` - UI automation tests using WinForms harness
+- `[Collection("ModernTestHarness")]` - UI automation tests using WinUI 3 harness
+- `[Collection("MouseIntegrationTests")]` - Mouse input tests
+- `[Collection("KeyboardIntegrationTests")]` - Keyboard input tests
+
+### WinUI 3 Integration Tests
+
+**Location:** `tests/Sbroenne.WindowsMcp.Tests/Integration/WinUI/`
+
+**Test Files:**
+- `WinUIClickTests.cs` - Click operations on buttons, checkboxes, radio buttons, list items
+- `WinUITypeTests.cs` - Text input into TextBox, editor, keyboard tracking
+- `WinUIReadTests.cs` - Reading element values and state verification
+- `WinUIFindTests.cs` - Finding elements by AutomationId, Name, ControlType
+- `WinUIWorkflowTests.cs` - End-to-end workflows (navigation, form filling, editor usage)
+- `WinUIFileDialogTests.cs` - File dialogs (Save As, Open, Pick Folder) and ContentDialogs
+
+**Running WinUI Tests:**
+```powershell
+# All WinUI tests
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~WinUI"
+
+# Specific categories
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~WinUIClick"
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~WinUIType"
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~WinUIRead"
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~WinUIFind"
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~WinUIWorkflow"
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~WinUIFileDialog"
+```
+
+## Unit Tests (SECONDARY)
+
+**Location:** `tests/Sbroenne.WindowsMcp.Tests/Unit/`
+
+**Unit tests are useful for:**
+- Parsing and validation logic (e.g., key name mapping, parameter validation)
+- Data transformations and utilities (e.g., Retry, Wait utilities)
+- Error handling paths that are hard to trigger in integration tests
+
+**Unit tests are NOT useful for:**
+- Verifying Windows input actually works
+- Verifying UI automation finds elements
+- Verifying window management operations
+
+### Running Unit Tests
+```powershell
+# Only when specifically testing parsing/utility logic
+dotnet test tests\Sbroenne.WindowsMcp.Tests --filter "FullyQualifiedName~Unit" -v q
+```
+
+## LLM Tests
+
+**Location:** `tests/Sbroenne.WindowsMcp.LLM.Tests/Scenarios/`
+
+**IMPORTANT: LLM tests are EXPENSIVE (time and cost). Be surgical:**
+- Only run LLM tests when specifically requested by the user
+- Verify code changes compile and integration tests pass BEFORE running LLM tests
+- Never run LLM tests "just to check" - they cost real money
+
+### Running LLM Tests
+
+**Use pytest-aitest via uv:**
+
+```powershell
+cd tests/Sbroenne.WindowsMcp.LLM.Tests
+uv run pytest -v
+```
+
+**Common commands:**
+- `uv run pytest -v` — Run all LLM tests
+- `uv run pytest test_notepad_ui.py -v` — Run specific test
+- `uv run pytest integration/ -v` — Run integration tests
+- `uv run pytest --collect-only` — List available tests without running
+
+**Do NOT:**
+- Publish to .exe manually
+- Set MCP_PROJECT_PATH or TEST_RESULTS_PATH manually
+
+### Writing LLM Test Scenarios
+
+**NEVER modify test scenario USER prompts to include implementation hints.**
+
+Test scenarios represent what REAL USERS would say. If a test fails because the LLM can't figure something out:
+1. ✅ Improve the TOOL GUIDANCE (descriptions, parameter hints)
+2. ✅ Improve the SYSTEM PROMPTS (WindowsAutomationPrompts.cs)
+3. ❌ NEVER add hints to the test USER prompts (this defeats the purpose of the test)
+
+The test USER prompts should be:
+- Natural language a real user would type
+- Free of implementation details (tool names, parameter names, exact syntax)
+- The "specification" of what the LLM should be able to handle
+
+If a test fails, ASK THE USER before making changes - don't assume modifying test prompts is acceptable.
+
+### Writing Test Assertions
+
+Use `anyOf` to accept multiple valid approaches (LLMs may solve the same problem differently):
+
+```yaml
+assertions:
+  # Accept either keyboard_control or ui_type for typing
+  - anyOf:
+      - tool_name: keyboard_control
+      - tool_name: ui_type
+```
+
+Use `allOf` when multiple conditions must be true:
+
+```yaml
+assertions:
+  - allOf:
+      - tool_name: window_management
+      - tool_call_contains: '"action":"close"'
+      - tool_call_contains: '"handle"'
+```
+
+### Assertion Types Reference
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `tool_name` | Verify specific tool was called | `tool_name: ui_click` |
+| `tool_call_contains` | Tool args contain text | `tool_call_contains: '"handle":"123"'` |
+| `response_contains` | Response contains text | `response_contains: "success"` |
+| `anyOf` | ANY child passes (OR) | See above |
+| `allOf` | ALL children pass (AND) | See above |
+| `not` | Child must FAIL | `not: { tool_name: mouse_control }` |
+
+### Example Scenario Structure
+
+```yaml
+name: "Descriptive Test Name"
+test_delay: 60s
+
+mcp_servers:
+  - name: windows-mcp
+    command: "{{SERVER_COMMAND}}"
+
+scenarios:
+  - name: "Scenario Name"
+    model: "{{MODEL}}"
+    system_prompt: |
+      You are a Windows automation assistant.
+    
+    steps:
+      - prompt: "Natural language user request here."
+        assertions:
+          - tool_name: expected_tool
+          - anyOf:
+              - tool_call_contains: '"param":"value1"'
+              - tool_call_contains: '"param":"value2"'
+```

@@ -1,0 +1,209 @@
+<html>
+<head>
+  <title>Edit Model Presets</title>
+  <script type="module">
+    import { store } from "/plugins/_model_config/webui/model-config-store.js";
+  </script>
+</head>
+
+<body>
+  <div x-data
+       x-init="
+         await $store.modelConfig.ensureLoaded();
+         $store.modelConfig.resetApiKeyDrafts();
+         await $store.modelConfig.refreshApiKeyStatus();
+         await $store.modelConfig.loadGlobalPresets();
+         await $store.modelConfig.preparePresetEditor($store.chats?.selected || '');
+       ">
+    <template x-if="$store.modelConfig._loaded && $store.modelConfig._presetsLoaded">
+      <div class="preset-editor"
+           x-data="$store.modelConfig.createPresetEditor($store.modelConfig.presetEditorInitialName)">
+        <div class="preset-editor-intro">
+          <div class="field-title">Model Presets</div>
+          <div class="field-description">
+            Each preset contains the main, utility, embedding, and optional vision-sidecar setup. Default is always available.
+          </div>
+        </div>
+
+        <div class="preset-editor-toolbar">
+          <label class="preset-editor-select">
+            <span class="field-title">Preset</span>
+            <select x-model.number="selectedKey" x-init="$nextTick(() => $el.focus())">
+              <template x-for="preset in presets" :key="preset._key">
+                <option :value="preset._key" :selected="preset._key === selectedKey" x-text="preset.name"></option>
+              </template>
+            </select>
+          </label>
+          <button type="button" class="button" @click="addPreset()">
+            <x-icon class="icon" name="add"></x-icon>
+            Add
+          </button>
+          <button type="button" class="button"
+                  x-show="canDeleteSelected"
+                  @click="$confirmClick($event, () => removeSelectedPreset())">
+            <x-icon class="icon" name="delete"></x-icon>
+            Delete
+          </button>
+        </div>
+
+        <template x-if="selectedPreset">
+          <div class="preset-editor-body">
+            <template x-if="canRenameSelected">
+              <div class="field preset-name-field">
+                <div class="field-label">
+                  <div class="field-title">Preset name</div>
+                  <div class="field-description">Shown in settings and the chat model switcher.</div>
+                </div>
+                <div class="field-control">
+                  <input type="text"
+                         x-model="selectedPreset.name"
+                         placeholder="Preset name">
+                </div>
+              </div>
+            </template>
+
+            <section class="preset-model-section">
+              <div class="preset-model-heading">
+                <div class="section-title">Main Model</div>
+                <div class="section-description">Primary model for conversations, reasoning, and tools.</div>
+              </div>
+              <div x-data="{ get model() { return selectedPreset.chat; }, get visionModel() { return selectedPreset.vision; }, modelType: 'chat', providers: $store.modelConfig.chatProviders, searchType: 'chat', apiKeyMode: 'store' }">
+                <x-component path="/plugins/_model_config/webui/model-field.html"></x-component>
+              </div>
+              <template x-if="!selectedPreset.chat.vision || selectedPreset.vision.override_main">
+                <div class="vision-sidecar-selector">
+                  <div class="field-title">Vision sidecar</div>
+                  <div class="field-description"
+                       x-text="selectedPreset.chat.vision
+                         ? 'Overrides Main model vision for vision_load.'
+                         : 'Used by vision_load while Main model vision is disabled. Leave empty to disable image analysis.'"></div>
+                  <div x-data="{ get model() { return selectedPreset.vision; }, modelType: 'vision', providers: $store.modelConfig.chatProviders, searchType: 'chat', apiKeyMode: 'store' }">
+                    <x-component path="/plugins/_model_config/webui/model-field.html"></x-component>
+                  </div>
+                </div>
+              </template>
+            </section>
+
+            <section class="preset-model-section">
+              <div class="preset-model-heading">
+                <div class="section-title">Utility Model</div>
+                <div class="section-description">Faster helper model for summaries and background work.</div>
+              </div>
+              <div x-data="{ get model() { return selectedPreset.utility; }, modelType: 'utility', providers: $store.modelConfig.chatProviders, searchType: 'chat', apiKeyMode: 'store', get providerFallback() { return selectedPreset.chat.provider; }, get apiBaseFallback() { return selectedPreset.chat.api_base; } }">
+                <x-component path="/plugins/_model_config/webui/model-field.html"></x-component>
+              </div>
+            </section>
+
+            <section class="preset-model-section">
+              <div class="preset-model-heading">
+                <div class="section-title">Embedding Model</div>
+                <div class="section-description">Creates vectors for memory and knowledge retrieval.</div>
+              </div>
+              <div x-data="{ get model() { return selectedPreset.embedding; }, modelType: 'embedding', providers: $store.modelConfig.embeddingProviders, searchType: 'embedding', apiKeyMode: 'store' }">
+                <x-component path="/plugins/_model_config/webui/model-field.html"></x-component>
+              </div>
+            </section>
+          </div>
+        </template>
+
+        <div class="preset-editor-secondary-actions">
+          <button type="button" class="text-button" @click="$store.modelConfig.openApiKeysFromSummary()">
+            <x-icon name="key"></x-icon>
+            API Keys
+          </button>
+          <button type="button" class="text-button"
+                  @click="$confirmClick($event, () => resetPresets())">
+            <x-icon name="restart_alt"></x-icon>
+            Restore bundled presets
+          </button>
+        </div>
+
+        <div class="modal-footer" data-modal-footer>
+          <button type="button" class="btn btn-ok"
+                  @click="if (await savePresets()) window.closeModal?.()">Save</button>
+          <button type="button" class="btn btn-cancel"
+                  @click="window.closeModal?.()">Close</button>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <style>
+    .preset-editor,
+    .preset-editor-body {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .preset-editor-intro .field-title {
+      font-size: 1rem;
+    }
+
+    .preset-editor-toolbar {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+      padding: 0.8rem;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      background: var(--color-input);
+    }
+
+    .preset-editor-select {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      gap: 0.35rem;
+      min-width: 0;
+      margin: 0;
+    }
+
+    .preset-editor-select select {
+      width: 100%;
+    }
+
+    .preset-name-field,
+    .preset-model-section {
+      padding: 1rem;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+    }
+
+    .preset-model-heading {
+      margin-bottom: 0.75rem;
+    }
+
+    .preset-model-heading .section-title {
+      margin-top: 0;
+    }
+
+    .vision-sidecar-selector {
+      margin: 0.75rem 0 0;
+      padding: 0.25rem 0 0;
+    }
+
+    .preset-editor-secondary-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    @media (max-width: 640px) {
+      .preset-editor-toolbar {
+        align-items: stretch;
+        flex-wrap: wrap;
+      }
+
+      .preset-editor-select {
+        flex-basis: 100%;
+      }
+
+      .preset-editor-toolbar .button {
+        flex: 1 1 auto;
+        justify-content: center;
+      }
+    }
+  </style>
+</body>
+</html>

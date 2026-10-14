@@ -1,0 +1,826 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using System.Text.Json;
+using Sbroenne.WindowsMcp.Automation;
+using Sbroenne.WindowsMcp.Capture;
+using Sbroenne.WindowsMcp.Input;
+using Sbroenne.WindowsMcp.Models;
+using Sbroenne.WindowsMcp.Native;
+using Sbroenne.WindowsMcp.Tests.Integration.TestHarness;
+using Sbroenne.WindowsMcp.Window;
+
+namespace Sbroenne.WindowsMcp.Tests.Integration;
+
+/// <summary>
+/// Integration tests for advanced UI Automation search features:
+/// - FoundIndex (Nth match)
+/// - NameContains (substring matching)
+/// - NamePattern (regex matching)
+/// - ClassName filtering
+/// - ExactDepth
+/// - GetElementAtCursor
+/// - GetFocusedElement
+/// - GetAncestors
+/// </summary>
+[Collection("UITestHarness")]
+public sealed class UIAutomationAdvancedSearchTests : IDisposable
+{
+    private readonly UITestHarnessFixture _fixture;
+    private readonly UIAutomationService _automationService;
+    private readonly UIAutomationThread _staThread;
+    private readonly string _windowHandle;
+
+    public UIAutomationAdvancedSearchTests(UITestHarnessFixture fixture)
+    {
+        _fixture = fixture;
+        _fixture.Reset();
+        _fixture.BringToFront();
+
+        _windowHandle = _fixture.TestWindowHandleString;
+
+        // Create real services for integration testing
+        _staThread = new UIAutomationThread();
+
+        var elevationDetector = new ElevationDetector();
+        var secureDesktopDetector = new SecureDesktopDetector();
+        var monitorService = new MonitorService();
+
+        var windowEnumerator = new WindowEnumerator(elevationDetector);
+        var windowActivator = new WindowActivator();
+        var windowService = new WindowService(
+            windowEnumerator,
+            windowActivator,
+            monitorService,
+            secureDesktopDetector);
+
+        var mouseService = new MouseInputService();
+        var keyboardService = new KeyboardInputService();
+
+        _automationService = new UIAutomationService(
+            _staThread,
+            monitorService,
+            mouseService,
+            keyboardService,
+            windowActivator,
+            elevationDetector,
+            NullLogger<UIAutomationService>.Instance);
+    }
+
+    public void Dispose()
+    {
+        _staThread.Dispose();
+        _automationService.Dispose();
+    }
+
+    #region FoundIndex Tests
+
+    [Fact]
+    public async Task Find_WithTimeout_WaitsForElementToAppear()
+    {
+        _fixture.Form!.Invoke(() => _fixture.Form.SetSubmitButtonVisibleForTesting(false));
+
+        try
+        {
+            var reveal = Task.Run(async () =>
+            {
+                await Task.Delay(250);
+                _fixture.Form.Invoke(() => _fixture.Form.SetSubmitButtonVisibleForTesting(true));
+            });
+
+            var result = await _automationService.FindElementsAsync(new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                AutomationId = "SubmitButton",
+                TimeoutMs = 2000,
+            });
+
+            await reveal;
+            Assert.True(result.Success, result.ErrorMessage);
+            Assert.NotEmpty(result.Items ?? []);
+        }
+        finally
+        {
+            _fixture.Form.Invoke(() => _fixture.Form.SetSubmitButtonVisibleForTesting(true));
+        }
+    }
+
+    [Fact]
+    public async Task Find_WithTimeout_DoesNotProbeAfterDeadline()
+    {
+        const string DelayedAutomationId = "DelayedSubmitButton";
+
+        try
+        {
+            var query = new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                AutomationId = DelayedAutomationId,
+            };
+            long elapsed = 0;
+            var probes = 0;
+            var result = await UIAutomationService.WaitForFindResultAsync(
+                query, 2000,
+                async () =>
+                {
+                    probes++;
+                    var observed = await _automationService.FindElementsAsync(query);
+                    if (probes == 1)
+                    {
+                        Assert.False(observed.Success);
+                        // Model a provider probe that captured absence before the deadline,
+                        // then completed after it. Publish the control change synchronously.
+                        _fixture.Form!.Invoke(() =>
+                            _fixture.Form.SetSubmitButtonAutomationIdForTesting(DelayedAutomationId));
+                        elapsed = 2001;
+                    }
+
+                    return observed;
+                },
+                (_, _) => throw new InvalidOperationException("The deadline has expired; do not delay."),
+                () => elapsed,
+                CancellationToken.None);
+
+            Assert.False(result.Success);
+            Assert.Equal(UIAutomationErrorType.Timeout, result.ErrorType);
+            Assert.Null(result.Items);
+            Assert.Equal(1, probes);
+        }
+        finally
+        {
+            _fixture.Form!.Invoke(() =>
+                _fixture.Form.SetSubmitButtonAutomationIdForTesting("SubmitButton"));
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "RequiresDesktop")]
+    public async Task Disappear_DoesNotProbeVisibilityChangeAfterDeadline()
+    {
+        var query = new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            AutomationId = "SubmitButton",
+            VisibleOnly = true
+        };
+        long elapsed = 0;
+        var probes = 0;
+        try
+        {
+            var result = await UIAutomationService.WaitForDisappearResultAsync(
+                query, 2000,
+                async () =>
+                {
+                    probes++;
+                    var observed = await _automationService.FindElementsAsync(query);
+                    if (probes == 1)
+                    {
+                        Assert.True(observed.Success, observed.ErrorMessage);
+                        // A visibility change after the deadline must not trigger another scan.
+                        _fixture.Form!.Invoke(() =>
+                            _fixture.Form.SetSubmitButtonVisibleForTesting(false));
+                        elapsed = 2001;
+                    }
+
+                    return observed;
+                },
+                (_, _) => throw new InvalidOperationException("No sleep is allowed after the deadline."),
+                () => elapsed,
+                CancellationToken.None);
+            Assert.False(result.Success);
+            Assert.Equal(UIAutomationErrorType.Timeout, result.ErrorType);
+            Assert.Equal(1, probes);
+        }
+        finally
+        {
+            _fixture.Form!.Invoke(() => _fixture.Form.SetSubmitButtonVisibleForTesting(true));
+        }
+    }
+
+    [Fact]
+    public async Task WaitForAppear_RequireUnique_PropagatesAmbiguity()
+    {
+        var result = await _automationService.WaitForElementAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                ControlType = "Button",
+                RequireUnique = true,
+            },
+            timeoutMs: 1000);
+
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.MultipleMatches, result.ErrorType);
+    }
+
+    [Fact]
+    public async Task WaitForDisappear_RequireUnique_DoesNotTreatAmbiguityAsGone()
+    {
+        var result = await _automationService.WaitForElementDisappearAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                ControlType = "Button",
+                RequireUnique = true,
+            },
+            timeoutMs: 1000);
+
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.MultipleMatches, result.ErrorType);
+    }
+
+    [Fact]
+    public async Task Find_RequireUniqueWithFoundIndex_ReturnsInvalidParameter()
+    {
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            RequireUnique = true,
+            FoundIndex = 2,
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.InvalidParameter, result.ErrorType);
+    }
+
+    [Fact]
+    public async Task Select_RequireUnique_PropagatesAmbiguity()
+    {
+        var result = await _automationService.ObserveAndSelectAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                ControlType = "Button",
+                RequireUnique = true,
+            },
+            "unused");
+
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.MultipleMatches, result.ErrorType);
+        Assert.NotNull(result.Diagnostics?.MultipleMatches);
+    }
+
+    [Fact]
+    public async Task Find_WithFoundIndex1_ReturnsAllButtons()
+    {
+        // FoundIndex=1 means "start from first match" which returns all matching elements
+        // This is the default behavior when no FoundIndex is specified
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            FoundIndex = 1,
+        });
+
+        // Assert - should return all buttons (at least Submit, Cancel, Disabled)
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 3, $"Expected at least 3 buttons, got {result.Items!.Length}");
+    }
+
+    [Fact]
+    public async Task Find_WithFoundIndex2_ReturnsFromSecondButton()
+    {
+        // Act - First find all buttons to know what to expect
+        var allButtonsResult = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+        });
+
+        Assert.True(allButtonsResult.Success, "Failed to find all buttons");
+        Assert.True(allButtonsResult.Items?.Length >= 2, "Need at least 2 buttons for this test");
+
+        var firstButton = allButtonsResult.Items![0];
+        var secondButton = allButtonsResult.Items![1];
+
+        // Act - Now get buttons starting from the 2nd one
+        // With FoundIndex=2, maxResults is set to 2, so we get up to 2 elements starting from 2nd
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            FoundIndex = 2,
+        });
+
+        // Assert - Should include 2nd button but not the first
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 1, "Should find at least one button");
+
+        // First result should be the 2nd button (not the first)
+        Assert.NotEqual(firstButton.Id, result.Items![0].Id);
+        Assert.Equal(secondButton.Id, result.Items![0].Id);
+    }
+
+    [Fact]
+    public async Task Find_WithFoundIndex3_ReturnsFromThirdCheckbox()
+    {
+        // The test harness has 3 checkboxes - get starting from the 3rd one
+        // With FoundIndex=3, maxResults=3, so we get up to 3 elements starting from 3rd
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "CheckBox",
+            FoundIndex = 3,
+        });
+
+        // Assert - with exactly 3 checkboxes, starting from 3rd gives us just the 3rd one
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 1, "Should find at least one checkbox");
+        Assert.Equal("CheckBox", result.Items![0].Type);
+    }
+
+    [Fact]
+    public async Task Find_WithFoundIndexExceedingCount_ReturnsEmpty()
+    {
+        // Act - Try to find 100th button (should not exist)
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            FoundIndex = 100,
+        });
+
+        // Assert - Should fail with ElementNotFound
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.ElementNotFound, result.ErrorType);
+    }
+
+    [Fact]
+    public async Task Find_RequireUnique_ReturnsAmbiguityDetails()
+    {
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            RequireUnique = true,
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.MultipleMatches, result.ErrorType);
+        Assert.NotNull(result.Diagnostics?.MultipleMatches);
+        Assert.True(result.Diagnostics!.MultipleMatches!.Length > 1);
+        Assert.All(result.Diagnostics.MultipleMatches, item =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(item.ControlType));
+            Assert.NotNull(item.Name);
+        });
+    }
+
+    [Fact]
+    public async Task Find_RequireUnique_RedactsTextFieldValuesFromDiagnostics()
+    {
+        const string SensitiveValue = "private-field-value";
+        var typed = await _automationService.ObserveAndTypeAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                AutomationId = "UsernameInput",
+                ControlType = "Edit",
+            },
+            SensitiveValue,
+            clearFirst: true,
+            inputMode: "value");
+        Assert.True(typed.Success, typed.ErrorMessage);
+
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Edit",
+            RequireUnique = true,
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.MultipleMatches, result.ErrorType);
+        Assert.DoesNotContain(
+            SensitiveValue,
+            JsonSerializer.Serialize(result.Diagnostics),
+            StringComparison.Ordinal);
+    }
+
+    #endregion
+
+    #region NameContains Tests
+
+    [Fact]
+    public async Task Find_WithNameContains_MatchesSubstring()
+    {
+        // The test harness has "Submit" and "Cancel" buttons
+        // Search for buttons containing "mit" (part of Submit)
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            NameContains = "mit",
+        });
+
+        // Assert
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 1, "Should find at least Submit button");
+        Assert.Contains(result.Items!, e => e.Name?.Contains("Submit", StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    [Fact]
+    public async Task Find_WithNameContains_CaseInsensitive()
+    {
+        // Search for "SUBMIT" (uppercase) should find "Submit"
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            NameContains = "SUBMIT",
+        });
+
+        // Assert
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 1);
+    }
+
+    [Fact]
+    public async Task Find_WithNameContains_NoMatch_ReturnsEmpty()
+    {
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            NameContains = "xyz_nonexistent_xyz",
+        });
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.ElementNotFound, result.ErrorType);
+    }
+
+    #endregion
+
+    #region NamePattern (Regex) Tests
+
+    [Fact]
+    public async Task Find_WithNamePattern_MatchesRegex()
+    {
+        // Search for buttons starting with "Sub" or "Can" using regex
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            NamePattern = "^(Sub|Can)",
+        });
+
+        // Assert
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 2, "Should find Submit and Cancel");
+    }
+
+    [Fact]
+    public async Task Find_WithNamePattern_EndsWith()
+    {
+        // Search for buttons ending with "mit"
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            NamePattern = "mit$",
+        });
+
+        // Assert - Submit ends with "mit"
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.Contains(result.Items!, e => e.Name?.Contains("Submit") == true);
+    }
+
+    [Fact]
+    public async Task Find_WithInvalidRegex_ReturnsNoMatch()
+    {
+        // Invalid regex pattern - should be handled gracefully
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            NamePattern = "[invalid(",
+        });
+
+        // Assert - Should fail gracefully (no matches because regex is invalid)
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.ElementNotFound, result.ErrorType);
+    }
+
+    #endregion
+
+    #region ExactDepth Tests
+
+    [Fact]
+    public async Task Find_WithExactDepth0_ReturnsOnlyRoot()
+    {
+        // ExactDepth 0 should only return the root element itself
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ExactDepth = 0,
+        });
+
+        // Assert - Should find the window itself
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        // Root should be a Window or Pane type
+        Assert.Contains(result.Items!, e =>
+            e.Type == "Window" || e.Type == "Pane");
+    }
+
+    [Fact]
+    public async Task Find_WithExactDepth1_ReturnsImmediateChildren()
+    {
+        // ExactDepth 1 should only return immediate children of root
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ExactDepth = 1,
+        });
+
+        // Assert
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 1, "Should have at least one immediate child");
+    }
+
+    #endregion
+
+    #region GetFocusedElement Tests
+
+    [Fact]
+    public async Task GetFocusedElement_ReturnsCurrentlyFocusedElement()
+    {
+        // Focus on the text box first
+        var textboxResult = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Edit",
+        });
+
+        Assert.True(textboxResult.Success, "Failed to find textbox");
+
+        // Focus the element
+        var focusResult = await _automationService.FocusElementAsync(textboxResult.Items![0].Id);
+
+        Assert.True(focusResult.Success, "Failed to focus element");
+
+        UIAutomationResult? result = null;
+        var focused = await TestWait.RetryUntilAsync(
+            attempt: async () => result = await _automationService.GetFocusedElementAsync(),
+            condition: () => result is { Success: true, Items.Length: > 0 });
+
+        Assert.True(focused, "Focused element did not become observable.");
+        Assert.NotNull(result);
+        Assert.True(result.Success, $"GetFocusedElement failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 1, "Should return at least one focused element");
+    }
+
+    #endregion
+
+    #region GetAncestors Tests
+
+    [Fact]
+    public async Task GetAncestors_ReturnsParentChain()
+    {
+        // Find a deeply nested element - checkbox inside group box
+        var checkboxResult = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "CheckBox",
+        });
+
+        Assert.True(checkboxResult.Success, "Failed to find checkbox");
+        var checkbox = checkboxResult.Items![0];
+
+        // Get ancestors
+        var result = await _automationService.GetAncestorsAsync(checkbox.Id, null);
+
+        // Assert
+        Assert.True(result.Success, $"GetAncestors failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 2, "Should have at least parent and window");
+
+        // The ancestors should include the window
+        Assert.Contains(result.Items!, e =>
+            e.Type == "Window" || e.Type == "Pane");
+    }
+
+    [Fact]
+    public async Task GetAncestors_WithInvalidElementId_ReturnsError()
+    {
+        var result = await _automationService.GetAncestorsAsync("invalid-element-id", null);
+
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.ElementNotFound, result.ErrorType);
+    }
+
+    #endregion
+
+    #region Diagnostics Tests
+
+    [Fact]
+    public async Task Find_DiagnosticsIncludesElementsScanned()
+    {
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+        });
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.Diagnostics);
+        Assert.True(result.Diagnostics.ElementsScanned > 0, "Should have scanned at least 1 element");
+        Assert.True(result.Diagnostics.DurationMs >= 0, "Duration should be non-negative");
+    }
+
+    [Fact]
+    public async Task Find_DiagnosticsIncludesDetectedFramework()
+    {
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+        });
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.Diagnostics);
+        // WinForms app should be detected
+        Assert.NotNull(result.Diagnostics.DetectedFramework);
+        Assert.True(
+            result.Diagnostics.DetectedFramework.Contains("Win", StringComparison.OrdinalIgnoreCase),
+            $"Expected WinForm(s) or Win32, got: {result.Diagnostics.DetectedFramework}");
+    }
+
+    [Fact]
+    public async Task GetTree_DiagnosticsIncludesContext()
+    {
+        var result = await _automationService.GetTreeAsync(_windowHandle, null, 3, null);
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.Diagnostics);
+        Assert.True(result.Diagnostics.ElementsScanned > 0);
+        Assert.NotNull(result.Diagnostics.DetectedFramework);
+    }
+
+    #endregion
+
+    #region Combined Criteria Tests
+
+    [Fact]
+    public async Task Find_WithMultipleCriteria_AppliesAll()
+    {
+        // Use both ControlType and NameContains
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            NameContains = "Sub",
+        });
+
+        // Assert - Should only find Submit
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.Single(result.Items!);
+        Assert.Contains("Submit", result.Items![0].Name ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task Find_WithFoundIndexAndNameContains_CombinesProperly()
+    {
+        // Find all checkboxes first
+        var allCheckboxes = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "CheckBox",
+        });
+
+        Assert.True(allCheckboxes.Success && allCheckboxes.Items?.Length >= 2,
+            "Need at least 2 checkboxes for this test");
+
+        // Now use FoundIndex=2 with CheckBox type
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "CheckBox",
+            FoundIndex = 2,
+        });
+
+        // Assert - Should start from 2nd checkbox
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 1, "Should find at least one checkbox");
+        Assert.NotEqual(allCheckboxes.Items![0].Id, result.Items![0].Id);
+    }
+
+    #endregion
+
+    #region ClassName Tests
+
+    [Fact]
+    public async Task Find_WithClassName_ReturnsMatchingElements()
+    {
+        // WinForms class names carry a volatile suffix (WindowsForms10.BUTTON.app.0.3cb9f91),
+        // so discover a real one from the harness at runtime rather than hardcoding it.
+        var className = GetFirstChildClassName(_fixture.TestWindowHandle);
+        Assert.False(string.IsNullOrEmpty(className), "Could not discover a child window class name from the harness.");
+
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ClassName = className,
+        });
+
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+    }
+
+    [Fact]
+    public async Task Find_WithClassNameDifferentCasing_StillMatches()
+    {
+        // ClassName is pushed into the native UIA condition; it must stay case-insensitive
+        // to match the previous in-process OrdinalIgnoreCase comparison.
+        var className = GetFirstChildClassName(_fixture.TestWindowHandle);
+        Assert.False(string.IsNullOrEmpty(className), "Could not discover a child window class name from the harness.");
+
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ClassName = className!.ToUpperInvariant(),
+        });
+
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+    }
+
+    [Fact]
+    public async Task Find_WithNonMatchingClassName_ReturnsNoElements()
+    {
+        // Guards against ClassName silently ceasing to be applied as a filter.
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+            ClassName = "NoSuchClassName_ZZZ",
+        });
+
+        // A zero-result find is reported as ElementNotFound rather than an empty success,
+        // so assert the specific error type: that distinguishes "the filter worked" from
+        // "the query failed for some other reason".
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.ElementNotFound, result.ErrorType);
+        Assert.True(result.Items == null || result.Items.Length == 0,
+            $"Expected no elements for a bogus className, got {result.Items?.Length ?? 0}.");
+    }
+
+    [Fact]
+    public async Task Find_WithClassNameAndNameContains_AppliesBoth()
+    {
+        var className = GetFirstChildClassName(_fixture.TestWindowHandle);
+        Assert.False(string.IsNullOrEmpty(className), "Could not discover a child window class name from the harness.");
+
+        // Combining ClassName with an advanced criterion keeps the cached-filter path,
+        // with ClassName now pre-filtered natively.
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ClassName = className,
+            NameContains = "ThisNameDoesNotExist_ZZZ",
+        });
+
+        Assert.False(result.Success);
+        Assert.Equal(UIAutomationErrorType.ElementNotFound, result.ErrorType);
+        Assert.True(result.Items == null || result.Items.Length == 0,
+            $"Expected no elements when nameContains cannot match, got {result.Items?.Length ?? 0}.");
+    }
+
+    private static string? GetFirstChildClassName(nint parent)
+    {
+        string? found = null;
+
+        NativeMethods.EnumChildWindows(parent, (hWnd, _) =>
+        {
+            var buffer = new char[256];
+            var length = NativeMethods.GetClassName(hWnd, buffer, buffer.Length);
+            if (length > 0)
+            {
+                found = new string(buffer, 0, length);
+                return false;
+            }
+
+            return true;
+        }, nint.Zero);
+
+        return found;
+    }
+
+    #endregion
+}

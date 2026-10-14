@@ -1,0 +1,113 @@
+# .NET / C#
+bin/
+obj/
+out/
+publish/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.userprefs
+*.cache
+*.csproj.user
+*.sln.cache
+*.sln.docstates
+
+# Build outputs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+TestResults/
+*.trx
+coverage/
+*.coverage
+*.coveragexml
+lcov.info
+
+# IDE
+.idea/
+*.sln.iml
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+*~
+
+# Environment & secrets
+.env
+.env.*
+*.env
+appsettings.*.json
+!appsettings.Development.json.template
+
+# Logs
+*.log
+*.log.*
+logs/
+
+# Temp files
+*.tmp
+*.temp
+*.swp
+*.bak
+
+# User-specific
+launchSettings.json
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# LLM Integration Test Results(screenshots and logs)
+specs/007-llm-integration-testing/results/
+
+# Node.js
+node_modules/
+
+# Electron harness build output
+tests/Sbroenne.WindowsMcp.Tests/Integration/ElectronHarness/dist/
+
+# Test screenshots for manual verification (not committed)
+tests/Sbroenne.WindowsMcp.Tests/Integration/ElectronHarness/screenshots/
+
+# Runtime screenshots generated during test execution (not committed)
+**/bin/**/screenshots/
+nupkg/
+
+# LLM Test output folder (timestamped test artifacts)
+tests/Sbroenne.WindowsMcp.LLM.Tests/output/
+
+# pytest-aitest artifacts
+__pycache__/
+.pytest_cache/
+*.pyc
+aitest-reports/
+.venv/
+.venv-benchmark/
+uv.lock

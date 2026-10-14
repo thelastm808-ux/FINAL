@@ -1,0 +1,242 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WindowManagement MCP Tool",
+  "description": "MCP tool for window management operations on Windows",
+  "type": "object",
+  "definitions": {
+    "WindowAction": {
+      "type": "string",
+      "enum": ["list", "find", "activate", "get_foreground", "minimize", "maximize", "restore", "close", "move", "resize", "set_bounds", "wait_for"],
+      "description": "The window management action to perform"
+    },
+    "WindowState": {
+      "type": "string",
+      "enum": ["Normal", "Minimized", "Maximized", "Hidden"],
+      "description": "The state of a window"
+    },
+    "WindowBounds": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "integer", "description": "Left edge X coordinate in physical pixels" },
+        "y": { "type": "integer", "description": "Top edge Y coordinate in physical pixels" },
+        "width": { "type": "integer", "minimum": 0, "description": "Window width in pixels" },
+        "height": { "type": "integer", "minimum": 0, "description": "Window height in pixels" }
+      },
+      "required": ["x", "y", "width", "height"]
+    },
+    "WindowInfo": {
+      "type": "object",
+      "properties": {
+        "handle": { "type": "string", "description": "Window handle (HWND) as decimal string" },
+        "title": { "type": "string", "description": "Window title text" },
+        "class_name": { "type": "string", "description": "Window class name" },
+        "process_name": { "type": "string", "description": "Process name (e.g., notepad.exe)" },
+        "process_id": { "type": "integer", "description": "Process ID" },
+        "bounds": { "$ref": "#/definitions/WindowBounds" },
+        "state": { "$ref": "#/definitions/WindowState" },
+        "monitor_index": { "type": "integer", "minimum": 0, "description": "Monitor index (0-based)" },
+        "on_current_desktop": { "type": "boolean", "description": "Whether on current virtual desktop" },
+        "is_elevated": { "type": "boolean", "description": "Whether process is elevated (admin)" },
+        "is_responding": { "type": "boolean", "description": "Whether window is responding" },
+        "is_uwp": { "type": "boolean", "description": "Whether this is a UWP/Store app" },
+        "is_foreground": { "type": "boolean", "description": "Whether window has foreground focus" }
+      },
+      "required": ["handle", "title", "class_name", "process_name", "process_id", "bounds", "state", "monitor_index"]
+    },
+    "WindowManagementErrorCode": {
+      "type": "string",
+      "enum": [
+        "InvalidAction", "InvalidHandle", "MissingRequiredParameter", "InvalidCoordinates", "InvalidRegexPattern",
+        "WindowNotFound", "WindowClosed", "WindowNotResponding", "HandleInvalid",
+        "ActivationFailed", "MoveFailed", "ResizeFailed", "CloseFailed", "StateChangeFailed",
+        "ElevatedWindowActive", "SecureDesktopActive", "AccessDenied",
+        "Timeout", "WaitTimeout",
+        "EnumerationFailed", "ProcessAccessDenied", "SystemError"
+      ],
+      "description": "Error code for failed operations"
+    }
+  },
+  "properties": {
+    "action": {
+      "$ref": "#/definitions/WindowAction",
+      "description": "The window management action to perform"
+    },
+    "handle": {
+      "type": "string",
+      "description": "Window handle (HWND) as decimal string. Required for activate, minimize, maximize, restore, close, move, resize, set_bounds."
+    },
+    "title": {
+      "type": "string",
+      "description": "Title search string for find and wait_for actions. Matches as substring unless regex=true."
+    },
+    "regex": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, treat title as a regex pattern"
+    },
+    "filter": {
+      "type": "string",
+      "description": "Filter for list action. Matches title or process name (case-insensitive substring)."
+    },
+    "x": {
+      "type": "integer",
+      "description": "X coordinate for move and set_bounds actions"
+    },
+    "y": {
+      "type": "integer",
+      "description": "Y coordinate for move and set_bounds actions"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Width for resize and set_bounds actions"
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Height for resize and set_bounds actions"
+    },
+    "timeout_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 30000,
+      "description": "Timeout in milliseconds for wait_for action"
+    },
+    "include_hidden": {
+      "type": "boolean",
+      "default": false,
+      "description": "Include non-visible windows in list results"
+    },
+    "include_all_desktops": {
+      "type": "boolean",
+      "default": false,
+      "description": "Include windows on other virtual desktops"
+    },
+    "include_cloaked": {
+      "type": "boolean",
+      "default": false,
+      "description": "Include DWM-cloaked windows"
+    }
+  },
+  "required": ["action"],
+  "examples": [
+    {
+      "description": "List all windows",
+      "value": { "action": "list" }
+    },
+    {
+      "description": "List windows with filter",
+      "value": { "action": "list", "filter": "notepad" }
+    },
+    {
+      "description": "Find window by title",
+      "value": { "action": "find", "title": "Untitled - Notepad" }
+    },
+    {
+      "description": "Find window by regex",
+      "value": { "action": "find", "title": ".*\\.txt - Notepad", "regex": true }
+    },
+    {
+      "description": "Activate window by handle",
+      "value": { "action": "activate", "handle": "123456" }
+    },
+    {
+      "description": "Get foreground window",
+      "value": { "action": "get_foreground" }
+    },
+    {
+      "description": "Minimize window",
+      "value": { "action": "minimize", "handle": "123456" }
+    },
+    {
+      "description": "Maximize window",
+      "value": { "action": "maximize", "handle": "123456" }
+    },
+    {
+      "description": "Restore window",
+      "value": { "action": "restore", "handle": "123456" }
+    },
+    {
+      "description": "Close window",
+      "value": { "action": "close", "handle": "123456" }
+    },
+    {
+      "description": "Move window",
+      "value": { "action": "move", "handle": "123456", "x": 100, "y": 100 }
+    },
+    {
+      "description": "Resize window",
+      "value": { "action": "resize", "handle": "123456", "width": 800, "height": 600 }
+    },
+    {
+      "description": "Set window bounds (move + resize)",
+      "value": { "action": "set_bounds", "handle": "123456", "x": 100, "y": 100, "width": 800, "height": 600 }
+    },
+    {
+      "description": "Wait for window to appear",
+      "value": { "action": "wait_for", "title": "Notepad", "timeout_ms": 10000 }
+    }
+  ],
+  "responses": {
+    "success_list": {
+      "description": "Successful list response",
+      "value": {
+        "success": true,
+        "windows": [
+          {
+            "handle": "123456",
+            "title": "Untitled - Notepad",
+            "class_name": "Notepad",
+            "process_name": "notepad.exe",
+            "process_id": 1234,
+            "bounds": { "x": 100, "y": 100, "width": 800, "height": 600 },
+            "state": "Normal",
+            "monitor_index": 0,
+            "on_current_desktop": true,
+            "is_elevated": false,
+            "is_responding": true,
+            "is_uwp": false,
+            "is_foreground": false
+          }
+        ],
+        "count": 1
+      }
+    },
+    "success_activate": {
+      "description": "Successful activation response",
+      "value": {
+        "success": true,
+        "window": {
+          "handle": "123456",
+          "title": "Untitled - Notepad",
+          "is_foreground": true
+        },
+        "message": "Window activated successfully"
+      }
+    },
+    "error_elevated": {
+      "description": "Error - elevated window",
+      "value": {
+        "success": false,
+        "error_code": "ElevatedWindowActive",
+        "error": "Cannot activate window - target process 'AdminApp.exe' is running elevated"
+      }
+    },
+    "error_not_found": {
+      "description": "Error - window not found",
+      "value": {
+        "success": false,
+        "error_code": "WindowNotFound",
+        "error": "No window found matching title 'NonExistent'"
+      }
+    },
+    "error_timeout": {
+      "description": "Error - wait timeout",
+      "value": {
+        "success": false,
+        "error_code": "WaitTimeout",
+        "error": "Timeout waiting for window matching 'Notepad' after 10000ms"
+      }
+    }
+  }
+}

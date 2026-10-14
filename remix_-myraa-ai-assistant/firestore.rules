@@ -1,0 +1,296 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Catch-all default deny to secure any unregistered collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Core Identity and Validation Helpers
+    // -------------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Schema Validators
+    // -------------------------------------------------------------------------
+    function isValidUserPreference(data) {
+      return data.keys().hasAll(['userId', 'themeColor', 'updatedAt']) 
+        && data.keys().size() == 3
+        && data.userId is string 
+        && data.userId.size() <= 128
+        && data.themeColor is string 
+        && data.themeColor.size() <= 30
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWorkspaceItem(data) {
+      return data.keys().hasAll(['id', 'userId', 'name', 'type', 'fileId', 'url', 'addedAt'])
+        && data.keys().size() == 7
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && (data.type == 'doc' || data.type == 'sheet')
+        && data.fileId is string && data.fileId.size() <= 128
+        && data.url is string && data.url.size() <= 1000
+        && data.addedAt is timestamp;
+    }
+
+    function isValidWorkspaceLog(data) {
+      return data.keys().hasAll(['id', 'userId', 'actionType', 'details', 'timestamp'])
+        && data.keys().size() == 5
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.actionType is string && data.actionType.size() <= 100
+        && data.details is string && data.details.size() <= 5000
+        && data.timestamp is timestamp;
+    }
+
+    function isValidConversationMessage(data) {
+      return data.keys().hasAll(['id', 'userId', 'conversationId', 'sessionId', 'role', 'content', 'timestamp', 'date', 'time', 'messageOrder'])
+        && data.keys().size() == 10
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.conversationId is string && data.conversationId.size() <= 128
+        && data.sessionId is string && data.sessionId.size() <= 128
+        && (data.role == 'user' || data.role == 'assistant' || data.role == 'model')
+        && data.content is string && data.content.size() <= 100000
+        && data.timestamp is timestamp
+        && data.date is string && data.date.size() <= 20
+        && data.time is string && data.time.size() <= 20
+        && data.messageOrder is int;
+    }
+
+    function isValidConversationSummary(data) {
+      return data.keys().hasAll(['id', 'userId', 'conversationId', 'summary', 'timestamp', 'createdAt'])
+        && data.keys().size() >= 6 && data.keys().size() <= 14
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.conversationId is string && data.conversationId.size() <= 128
+        && data.summary is string && data.summary.size() <= 50000
+        && data.timestamp is timestamp
+        && data.createdAt is timestamp
+        && (!data.keys().hasAny(['topics']) || data.topics is list)
+        && (!data.keys().hasAny(['decisions']) || data.decisions is list)
+        && (!data.keys().hasAny(['tasks']) || data.tasks is list)
+        && (!data.keys().hasAny(['preferences']) || data.preferences is list)
+        && (!data.keys().hasAny(['facts']) || data.facts is list)
+        && (!data.keys().hasAny(['questions']) || data.questions is list)
+        && (!data.keys().hasAny(['goals']) || data.goals is list)
+        && (!data.keys().hasAny(['followUps']) || data.followUps is list);
+    }
+
+    function isValidLongTermMemory(data) {
+      return data.keys().hasAll(['id', 'userId', 'category', 'text', 'createdAt', 'updatedAt'])
+        && data.keys().size() == 6
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && (data.category == 'identity' || data.category == 'preference' || data.category == 'goal' || data.category == 'project' || data.category == 'relationship' || data.category == 'emotional' || data.category == 'behavior')
+        && data.text is string && data.text.size() <= 5000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['id', 'userId', 'name', 'description', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().size() == 7
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.name is string && data.name.size() <= 200
+        && data.description is string && data.description.size() <= 2000
+        && data.status is string && data.status.size() <= 50
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['id', 'userId', 'title', 'description', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().size() == 7
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.title is string && data.title.size() <= 200
+        && data.description is string && data.description.size() <= 2000
+        && data.status is string && data.status.size() <= 50
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidReminder(data) {
+      return data.keys().hasAll(['id', 'userId', 'text', 'datetime', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().size() == 7
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.text is string && data.text.size() <= 1000
+        && data.datetime is timestamp
+        && data.status is string && data.status.size() <= 50
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Resource Rule Mappings
+    // -------------------------------------------------------------------------
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) 
+        && isValidUserPreference(request.resource.data)
+        && request.resource.data.updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidUserPreference(request.resource.data)
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.userId == resource.data.userId;
+      allow delete: if isOwner(userId);
+
+      // Nested collection for Favorite Workspace Items
+      match /workspace_items/{itemId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(itemId)
+          && isValidWorkspaceItem(request.resource.data)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.addedAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(itemId)
+          && isValidWorkspaceItem(request.resource.data)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.addedAt == resource.data.addedAt; // Immortality gate
+        allow delete: if isOwner(userId);
+      }
+
+      // Nested collection for Automated Activity Logs
+      match /workspace_logs/{logId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(logId)
+          && isValidWorkspaceLog(request.resource.data)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.timestamp == request.time;
+        allow update, delete: if false; // Immutable append-only logs for tamper-proof auditing
+      }
+
+      // Conversations collection
+      match /conversations/{conversationId} {
+        allow list, get: if isOwner(userId);
+        allow create, update: if isOwner(userId);
+        allow delete: if isOwner(userId);
+
+        match /messages/{messageId} {
+          allow list, get: if isOwner(userId);
+          allow create: if isOwner(userId)
+            && isValidId(messageId)
+            && isValidConversationMessage(request.resource.data)
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.timestamp == request.time;
+          allow update: if isOwner(userId)
+            && isValidId(messageId)
+            && isValidConversationMessage(request.resource.data)
+            && request.resource.data.userId == resource.data.userId;
+          allow delete: if isOwner(userId);
+        }
+      }
+
+      // Summaries collection
+      match /summaries/{summaryId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(summaryId)
+          && isValidConversationSummary(request.resource.data)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.timestamp == request.time
+          && request.resource.data.createdAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(summaryId)
+          && isValidConversationSummary(request.resource.data)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.createdAt == resource.data.createdAt;
+        allow delete: if isOwner(userId);
+      }
+
+      // Memories collection (long-term memory)
+      match /memories/{memoryId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(memoryId)
+          && isValidLongTermMemory(request.resource.data)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(memoryId)
+          && isValidLongTermMemory(request.resource.data)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isOwner(userId);
+      }
+
+      // Projects collection
+      match /projects/{projectId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(projectId)
+          && isValidProject(request.resource.data)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(projectId)
+          && isValidProject(request.resource.data)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isOwner(userId);
+      }
+
+      // Tasks collection
+      match /tasks/{taskId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(taskId)
+          && isValidTask(request.resource.data)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(taskId)
+          && isValidTask(request.resource.data)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isOwner(userId);
+      }
+
+      // Reminders collection
+      match /reminders/{reminderId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(reminderId)
+          && isValidReminder(request.resource.data)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && isValidId(reminderId)
+          && isValidReminder(request.resource.data)
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

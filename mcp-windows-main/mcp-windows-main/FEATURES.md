@@ -1,0 +1,1064 @@
+# Windows MCP Features
+
+Windows controls, not just screenshots. Use these tools through an MCP client
+or the `wincli` command line. This reference explains their settings and limits.
+
+## How it works
+
+Windows MCP reads the buttons, fields, menus, and tables that an application
+makes available to Windows accessibility. It gives each control an ID. The agent
+uses that ID to click, type, or read, rather than guessing a screen position.
+If the control is replaced, the agent must find it again.
+
+Copilot, Claude, Cursor, and other compatible clients can use these tools.
+Screenshots, mouse, keyboard, and text recognition are available when an
+application does not expose usable controls.
+
+### Controls and screenshots
+
+Screenshot-only automation gives an agent an image and mouse/keyboard tools.
+The model identifies controls and text in the image.
+
+Windows MCP first asks [Windows UI Automation](https://learn.microsoft.com/en-us/windows/win32/winauto/entry-uiauto-win32)
+for the controls an application exposes. The agent receives names, IDs, field
+values, and states such as checked or disabled. It can act on a discovered
+control or read a table without having to interpret a screenshot.
+
+This is useful for forms, dialogs, and business applications. It also lets
+supported tasks use text responses without requiring an image-reading model.
+Changes-only snapshots reduce repeated descriptions of the same controls.
+
+Use screenshots when appearance matters or an application does not expose
+usable controls. Windows MCP includes both approaches. A missing control,
+duplicate label, or failed action still needs to be handled; accessibility
+information is not a guarantee of success.
+
+Other servers, including [CursorTouch Windows-MCP](https://github.com/CursorTouch/Windows-MCP),
+also offer accessibility-based views. Windows MCP combines this approach with
+IDs that cannot silently switch to replacement controls, changes-only snapshots,
+structured table reads, and both MCP and command-line access.
+No head-to-head reliability or cost advantage has been measured here.
+
+### Token Optimization
+
+Save tokens with focused text reads instead of unnecessary screenshots, then
+send only changes rather than repeating a whole window. AI services count text
+and image input in **tokens**. Short control reads can use fewer tokens than an
+image and leave more room for the task in the agent's working context.
+
+| Feature | How it reduces repeated information |
+|-----------|---------|
+| **Changes-only views** | `ui_snapshot(mode='auto')` can return just what changed. It returns a full view when that is safer or smaller. |
+| **Read only what you need** | Inspect one part of a window, one field, or one table. |
+| **Combine steps** | Run several steps in one request, or ask for an updated view with an action. |
+| **Text and tables** | Return text, rows, and columns instead of asking the model to read a screenshot. |
+| **Optional images** | Screenshot discovery can return control names and locations without sending an image. |
+| **Command-line help** | An agent using `wincli` can look up commands when needed. |
+
+See the [snapshot benchmark](docs/incremental-snapshot-benchmark.md) for measured
+results and the method used. These figures measure snapshot responses, not the
+cost of a whole conversation. Smaller responses do not necessarily take less
+time to capture.
+
+---
+
+### When to Use Each Tool
+
+| Scenario | Tool | Why |
+|----------|------|-----|
+| Discover UI elements | `ui_find` | Find elements by name, type, or ID (with timeout/retry) |
+| Click an observed button | `ui_click` | Uses an ID returned by discovery, not a guessed label or coordinate |
+| Type text into a field | `ui_type` | Direct text input with clear option |
+| Read text from elements | `ui_read` | Read an observed element; explicit whole-window reads can fall back to OCR |
+| Extract a table/grid to structured rows | `ui_read_table` | Rows + headers as JSON, no OCR/screenshot parsing |
+| Wait for windows | `window_management` | Use `wait_for` action for new windows |
+| Save files | `file_save` | Handle Save As dialogs automatically |
+| Open an existing file | `file_open` | Handle Open dialogs automatically |
+| Move bulk text in/out of an app | `clipboard` | Fastest text IO; pair with copy/paste hotkeys |
+| Reuse a workflow | `ui_batch` | Keep a steps array in a project file and run it with `wincli ui batch --steps-file` |
+| List or kill running processes | `process` | Task-manager style: find hung apps, free resources |
+| Discover UI visually | `screenshot_control` | Annotated screenshots with element data |
+| Press hotkeys (Ctrl+S) | `keyboard_control` | Direct keyboard input |
+| Custom controls / games | `mouse_control` | Coordinate-based fallback |
+| Draw on a canvas | `ui_batch` | Batch `mouse`/`polyline` steps; one call per figure, not one per stroke |
+| Find/move windows | `window_management` | Window lifecycle control |
+
+### Browser Automation
+
+- Edge, Chrome, and other Chromium apps are detected automatically.
+- Launch with `app(programPath='msedge.exe', arguments='https://example.com')` or find an existing browser window first.
+- Inspect `launchStatus` and `window`/`windows` before handle-based calls. If the intended handle is missing or ambiguous, inspect candidates or rediscover with `window_management`; stop handle-based steps until the target is identified. Verify the intended page before acting.
+- Page links, buttons, and form fields usually surface visible text or ARIA labels as the UIA `name`, so start with `ui_find`, `ui_click`, and `ui_type`.
+- For authenticated or SSO-only sites, prefer reusing an already-open signed-in Edge/Chrome window first. A Chromium launcher helper exiting immediately is often normal existing-session behavior, so check the browser window before retrying the launch.
+- Keep discovery compact: `screenshot_control` already returns annotated element metadata without image bytes unless you opt in.
+- For browser chrome like the address bar or tab switching, prefer shortcuts such as `Ctrl+L`, `Ctrl+R`, and `Ctrl+Tab`.
+- Treat browser chrome and non-Chromium browsers as best-effort until dedicated browser coverage expands beyond the Electron/Chromium harnesses.
+
+## Tools Overview
+
+| Tool | Description |
+|------|-------------|
+| `app` | Launch applications |
+| `ui_snapshot` | Capture a compact element tree; optionally return only changes after the first view |
+| `ui_find` | Find UI elements by name, type, or ID (with timeout/retry via `timeoutMs`) |
+| `ui_click` | Click buttons, tabs, checkboxes |
+| `ui_type` | Type text into edit controls |
+| `ui_select` | Select a value in a combo box, list, or tab |
+| `ui_read` | Read text from elements (UIA + OCR) |
+| `ui_read_table` | Extract a grid/table/list-view into structured rows + headers |
+| `ui_wait` | Wait for an element to appear, disappear, or reach a state |
+| `ui_batch` | Run several UI steps (find/click/type/select/wait/read/snapshot/key/mouse/polyline) in one call |
+| `file_save` | Save files via Save As dialog (English Windows only) |
+| `file_open` | Open an existing file via the Open dialog (English Windows only) |
+| `clipboard` | Read/write the Windows text clipboard (get/set/clear) |
+| `process` | List or kill running processes, task-manager style (list/kill) |
+| `screenshot_control` | Annotated screenshots for discovery + fallback |
+| `keyboard_control` | Keyboard input and hotkeys |
+| `mouse_control` | Coordinate-based mouse input (fallback) |
+| `window_management` | Window control and management |
+
+### Two ways to call these tools
+
+Every tool listed above is available through **two equal entry points that share one implementation**:
+
+- **MCP server** — the tool schemas documented in this file (for MCP hosts).
+- **`wincli` CLI** — the same tools as shell commands (for coding agents with terminal access).
+  The CLI calls the same tool methods and uses the same response format.
+  Discover commands via `wincli --help` / `wincli tools` / `wincli guidance`
+  instead of loading every MCP schema. Its persistent service retains CLI IDs and snapshot
+  baselines; each MCP process owns separate state. IDs and snapshot tokens are not interchangeable.
+  Command mapping mirrors the tool names,
+  e.g. `ui_click` → `wincli ui click`, `window_management` → `wincli window <action>`,
+  `screenshot_control` → `wincli screenshot`. See
+  [`src/Sbroenne.WindowsMcp.Cli/README.md`](src/Sbroenne.WindowsMcp.Cli/README.md) for the full
+  command reference.
+
+---
+
+## � App (`app`)
+
+Launch applications and observe process/window status. A selected window handle is optional.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `programPath` | Program to launch (e.g., 'notepad.exe', 'C:\\Program Files\\...\\app.exe') | Yes |
+| `arguments` | Command-line arguments | No |
+| `workingDirectory` | Working directory for the process | No |
+| `waitForWindow` | Wait for window to appear (default: true) | No |
+
+### Capabilities
+
+- Launch applications by name or full path
+- Observe visible windows belonging to the launched process or a matching pre-launch instance
+- Return a selected window only when uniquely identified; otherwise inspect candidates or rediscover the target
+- Configurable startup parameters
+
+### Launch observations (MCP and CLI)
+
+`app` and `wincli app` report `launchStatus` separately from requested content:
+
+| Status | Meaning |
+|--------|---------|
+| `started` | The process started; no window was observed within the wait, or waiting was disabled. |
+| `windowObserved` | A visible window belongs to the launched process. |
+| `possibleHandoff` | The launcher exited zero and a pre-launch instance of the same executable still has visible windows. |
+| `exitedWithoutWindow` | The launcher exited zero but no window or matching pre-launch instance could be established; the call fails without claiming a handoff. |
+
+A possible handoff is not confirmation that a URL/document was delivered or loaded.
+Native executable image paths and process creation times establish the existing instance,
+not window titles or executable basenames. The retained process handle identifies even
+an already-exited launcher; bare names still use Windows' own executable lookup.
+Launch observations include visible untitled windows; ordinary window listings retain
+their existing filtering, while explicit handle operations can inspect those windows.
+If image identity cannot be read, or a Store launcher redirects to a different executable,
+the relationship remains unverified rather than being inferred from a title or requested path.
+Nonzero exits observed during the wait fail even when another instance is open.
+Multiple matching windows are listed without selecting an arbitrary `window`.
+
+No launch status guarantees foreground focus, input readiness, or requested content.
+If the handle is missing or ambiguous, use `window_management` to inspect candidates or
+rediscover the target; do not call handle-based tools until the intended handle is identified.
+Then inspect the intended content with `ui_read` / `ui_wait` before acting; activate it explicitly
+with `window_management` when needed. A running process without a window can still exit later;
+`started` is an observation, not a guarantee of future success.
+
+### Example
+
+```
+app(programPath='notepad.exe')
+→ Example only: { "success": true, "launchStatus": "windowObserved", "window": { "handle": "123456", ... } }
+# Continue only after identifying the intended handle; a launch may omit it.
+ui_find(windowHandle='123456', controlType='Edit')
+# Select the intended input's observed ID and verify the document before typing.
+ui_type(windowHandle='123456', elementId='<discovered-input-id>', text='Hello World')
+```
+
+---
+
+## �🔍 UI Find (`ui_find`)
+
+Find and discover UI elements by name, type, or automation ID.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `windowHandle` | Target window handle | Yes |
+| `name` | Exact element name | No |
+| `nameContains` | Partial name match | No |
+| `namePattern` | Regex pattern for name | No |
+| `automationId` | Automation ID (most reliable) | No |
+| `controlType` | Control type (Button, Edit, CheckBox, etc.) | No |
+| `foundIndex` | Return the Nth match (1-based) | No |
+| `timeoutMs` | Bounded search timeout in milliseconds | No |
+| `sortByProminence` | Sort by bounding box area | No |
+
+### Capabilities
+
+- Find elements by name, control type, or automation ID
+- Partial name matching with `nameContains`
+- Regex pattern matching with `namePattern`
+- Sort results by prominence (largest first) for disambiguation
+- Returns element IDs for use with other ui_* tools
+- Electron app support (VS Code, Teams, Slack)
+- PowerPoint slide discovery without changing views or sending input. Snapshots,
+  searches, and window text reads briefly observe control changes so PowerPoint
+  exposes its slide controls. A text shape can appear as an `Image` control;
+  read its text with `ui_read` and its observed ID. This works through MCP and CLI.
+
+Each search scan checks at most 2,000 nodes, including nonmatching nodes. If the
+scan limit leaves candidates unchecked, `search_incomplete` is returned instead
+of claiming the target is absent or unique. Name, `automationId`, `controlType`,
+and `className` filters choose matches; they do not stop unrelated nodes from
+counting toward the limit. A longer timeout does not increase this limit.
+
+To reduce the area searched, call `ui_find` with `exactDepth=1` to discover the
+window's immediate children. Choose an observed container and pass its returned
+`id` as `parentElementId` in the next search. Repeat shallow discovery inside that
+container if needed. The CLI options are `--exact-depth 1` and
+`--parent-element-id <id>`. Use IDs within the same MCP session or CLI daemon;
+they are not interchangeable between those two connections.
+
+For smaller replies, use `ui_snapshot` with a known `parentElementId`, or use
+`ui_read` with an observed `elementId` when only that element's text is needed.
+Snapshot `maxDepth` and `controlTypeFilter` reduce the returned content, but do
+not necessarily reduce the work done by the app to provide its controls.
+
+When the snapshot scan limit leaves controls unchecked, the reply keeps the
+partial tree and reports `snapshotIncomplete=true` and `snapshotWarning`,
+even without diagnostics. `kind='full'` means a tree reply, not that every
+control was checked. Missing controls do not prove absence. Partial snapshots
+have no comparison token and are not used for changes-only replies; the next
+complete automatic snapshot starts a fresh comparison.
+
+If the scan limit is reached before any matching controls are returned, the
+snapshot fails with `search_incomplete`, not a claim that the controls are
+missing. Its incomplete status and warning remain visible.
+
+Attached snapshots use `postActionSnapshotIncomplete` and `postActionWarning`.
+Snapshot steps in a batch use `snapshotIncomplete` and `snapshotWarning`.
+These warnings do not change the result of the preceding action.
+
+With a positive `timeoutMs` (default: 5,000), retries and scans share one time
+budget. No new scan starts at or after the deadline, and scanning stops between
+Windows accessibility calls when time runs out. A Windows call already in
+progress can still take longer to return. An interrupted scan reports `timeout`
+without claiming the target is absent or unique. Set `includeDiagnostics=true`
+to see elapsed time and the last scan's element count. `timeoutMs=0` performs
+one node-bounded scan without a time deadline.
+
+---
+
+## 🖱️ UI Click (`ui_click`)
+
+Click buttons, tabs, checkboxes, and other interactive elements.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `windowHandle` | Target window handle | Yes |
+| `elementId` | Opaque ID from `ui_find` or `ui_snapshot` | Yes |
+| `doubleClick` | Double-click instead of single-click | No |
+
+Selectors are not accepted. Discover the target first; stale IDs fail without retargeting.
+
+### Capabilities
+
+- Click buttons, tabs, menu items
+- Toggle checkboxes and toggle buttons
+- Handles various control patterns automatically
+- Falls back to coordinate-based click if pattern fails
+- Validates the observed identity, target window, visibility, and enabled state before acting
+- Discover duplicate labels using `ui_find(scope='active_dialog', requireUnique=true)`
+- `doubleClick=true` double-clicks an element by ID. UI Automation has no double-click pattern, so this is physical input at the validated element's clickable point.
+
+<a id="dispatch-is-not-outcome-verification"></a>
+
+### Check what happened after a click
+
+For `ui_click` and `wincli ui click`, `success:true` means the action was sent, not
+that saving, publishing, or navigation finished. Results include `actionDispatched:true`,
+`outcomeVerified:false`, the pre-action `target`, and a separately labeled
+`postActionElement`. `postActionState:"unavailable"` means the target could not
+be read afterward, not that the click failed. A label change, self-disable, or
+disappearing dialog is not a reason to repeat the click. An inert button can also
+accept a click without doing anything. This applies to double-clicks too.
+
+An unsupported pre-action name may be omitted; the original target ID is retained.
+Provider failures while reading after dispatch, including timeouts and access
+errors, produce `postActionElementWarning` without changing dispatch success.
+
+Use `withSnapshot:true` (`--with-snapshot` in the CLI) to inspect the immediate
+window state. Use `ui_wait` with a bounded `timeoutMs`, or a read or later snapshot,
+for changes that take time. These observations do not replay the click or change
+its `outcomeVerified` field. Verify application-specific outcomes explicitly;
+a snapshot alone is not proof that a file was saved or a form was submitted.
+
+---
+
+## ⌨️ UI Type (`ui_type`)
+
+Type text into edit controls and text fields.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `windowHandle` | Target window handle | Yes |
+| `text` | Text to type | Yes |
+| `elementId` | Opaque ID of the discovered input | Yes |
+| `clearFirst` | Clear existing text before typing | No (default: false) |
+| `inputMode` | `auto`, `keyboard`, or `value` | No (default: auto) |
+
+### Capabilities
+
+- Type text into any editable control
+- Clear existing content before typing with `clearFirst=true`
+- Append text to existing content
+- Unicode support for any language
+- `auto` uses normal focus and keyboard input for Chromium/Electron so React-style input handlers observe the change
+- `keyboard` forces the normal focus/key event path; `value` forces UIA ValuePattern
+- The tool verifies the requested value became observable and fails instead of reporting an unobserved change
+- If the application changes the resulting text, the tool reports a mismatch without deleting suggestions or rewriting the field. The agent decides how to recover.
+
+---
+
+## 📖 UI Read (`ui_read`)
+
+Read text from elements using UI Automation or OCR.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `windowHandle` | Target window handle | Yes |
+| `elementId` | Opaque ID of the discovered element; omit only for an explicit whole-window read | For element reads |
+| `includeChildren` | Include child element text | No (default: false) |
+| `language` | OCR language code (e.g., 'en-US') | No |
+| `format` | `raw` (default) or `article` for clean web-page text | No |
+
+### Capabilities
+
+- Extract text from any UI element
+- Automatic whole-window OCR fallback only for explicit window reads
+  with empty UIA text or a provider/extraction failure. Invalid targets and
+  access failures remain errors; malformed window handles never select the foreground window.
+- Windows.Media.Ocr for local text recognition
+- Language support for international text
+- Element-ID failures return errors, not unrelated window text.
+  Omit `elementId` with an explicit `windowHandle` to intentionally read the window.
+  Element reads never widen to whole-window OCR, even when UIA returns empty text.
+- Chrome fields with separate input parts, such as dates, must be read through
+  their child controls. Their parent value can be out of date: direct reads
+  return `pattern_not_supported`, and snapshots omit that parent value.
+  The month, day, and year remain readable and individually editable.
+- **Article mode (`format: "article"`)** for web pages in Edge/Chrome: returns the main
+  content only — navigation chrome, breadcrumbs, and "in this article" rails are dropped,
+  inline link URLs are stripped (visible link text is kept), and headings/lists are emitted
+  as lightweight markdown. Because it reads the live signed-in browser window via UI
+  Automation, it also works for authenticated/internal pages that an HTTP fetch cannot reach.
+
+---
+
+## 🧮 UI Read Table (`ui_read_table`)
+
+Extract a grid, table, or details-view list into structured rows — no OCR, screenshot parsing, or
+cell-by-cell `ui_read` loops. Uses the native UIA Grid/Table patterns, so WinForms `DataGridView`,
+WPF `DataGrid`, and Win32 `ListView` (Details view) all return clean row/column data.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `windowHandle` | Target window handle | Yes |
+| `elementId` | Opaque ID of the grid itself from discovery | Yes |
+| `maxRows` | Cap rows returned (protects token budget) | No (default: 200) |
+| `maxColumns` | Cap columns returned | No (default: 50) |
+| `includeDiagnostics` | Include timing/framework diagnostics | No (default: false) |
+
+The target itself must expose Grid pattern. A stale ID or a non-grid target fails;
+the tool never searches for a different grid elsewhere in the window.
+
+### Response shape
+
+```json
+{
+  "success": true,
+  "table": {
+    "rowCount": 5,
+    "columnCount": 5,
+    "headers": ["ID", "Product Name", "Price", "Stock", "Available"],
+    "rows": [["P001", "Laptop Pro 15", "1299.99", "12", "True"]],
+    "truncated": true
+  }
+}
+```
+
+`headers` is omitted when the grid exposes no Table pattern; `truncated` is present only when
+`rowCount` exceeds the returned rows (raise `maxRows` to fetch the rest).
+
+### Capabilities
+
+- One call instead of N×M `ui_read` calls to scrape a grid
+- Column headers via the UIA Table pattern when available
+- Row/column caps keep large grids within an agent's token budget
+- Fails cleanly with a recovery hint when the target isn't a grid
+
+---
+
+## 🌳 UI Snapshot (`ui_snapshot`)
+
+Read the controls in a window, grouped by their parent controls. This view is
+called a **snapshot**. Use it to see what is available before acting. You can
+limit how many levels of controls to include.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `windowHandle` | Target window handle (foreground window if omitted) | No |
+| `parentElementId` | Revisit a known subtree using an id from an earlier snapshot/find | No |
+| `maxDepth` | Max tree depth (default framework-aware; capped at 20) | No (default: 5) |
+| `controlTypeFilter` | Comma-separated control types to keep (e.g. 'Button,Edit') | No |
+| `mode` | `full` for one complete view, `auto` for repeated checks of the same target, or `reset` to start a new comparison | No (default: `full`) |
+| `includeDiagnostics` | Include timing/framework diagnostics | No (default: false) |
+
+### Capabilities
+
+- One call to see what's on screen with ids, names, types, click coordinates, and available value/toggle state
+- Revisit a known part of a large window via `parentElementId`
+- Prune noise with `controlTypeFilter`
+- Feed returned ids straight into `ui_click`, `ui_type`, `ui_read`, `ui_wait`
+- Use `mode=full` for a one-time inspection.
+- Use `mode=auto` from the first check when the task will inspect the same window or known subtree again. `full` is not remembered. The first automatic response is complete; later responses contain only changes when that is clearly smaller.
+- Use `mode=reset` when starting a new comparison. Separate `wincli` commands share their
+  service's bounded latest-baseline cache. Pass the previous `snapshotToken` using `--since`
+  with `--mode auto`; a missing or superseded token returns a complete baseline.
+
+Savings depend on the application's accessibility tree and the changes being made.
+The [benchmark](docs/incremental-snapshot-benchmark.md) records current measurements
+with response sizes, approximate tokens,
+full/diff counts, and known limitations. Do not assume that a full page navigation
+can be represented as a small change.
+
+Complete snapshots return controls in `tree`. Use `ui_find` when you need a
+flat list of matching controls instead.
+
+### Response examples
+
+The first automatic view and a reset both return a complete tree:
+
+```json
+{"success":true,"kind":"full","tree":[{"id":"1","name":"Window","type":"Window","click":[400,300,0],"enabled":true}]}
+```
+
+A useful update returns only the change:
+
+```json
+{"success":true,"kind":"diff","changes":[{"op":"add","key":"root/Menu:File#0","node":{"id":"7","name":"File","type":"Menu","click":[50,20,0],"enabled":true}}]}
+```
+
+No change is explicit and very small:
+
+```json
+{"success":true,"kind":"diff","changes":[]}
+```
+
+If a change list would be close to the complete response size, the server safely returns
+`kind="full"` instead.
+
+---
+
+## 🎚️ UI Select (`ui_select`)
+
+Select a value in a combo box, drop-down, list box, or tab control using the proper UI Automation selection patterns (SelectionItem/ExpandCollapse) for cross-framework reliability.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `windowHandle` | Target window handle | Yes |
+| `value` | Visible text of the option to select | Yes |
+| `elementId` | Opaque ID of the containing selection control, not a hidden option | Yes |
+
+### Capabilities
+
+- Reliable selection without click-then-click guesswork
+- Auto-expands drop-downs when needed
+- Works across Win32, WinForms, WPF, WinUI, and browser controls
+
+---
+
+## ⏳ UI Wait (`ui_wait`)
+
+Wait until a UI condition is met before continuing - no blind sleeps or screenshot polling. Uses efficient exponential-backoff polling internally.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `mode` | `appear` (default), `disappear`, or `state` | No |
+| `windowHandle` | Target window handle for appear/disappear | No |
+| `name` / `nameContains` | Selector for appear/disappear | No |
+| `automationId` | Automation ID selector | No |
+| `controlType` | Control type selector | No |
+| `elementId` | Element id for `mode='state'`; rejected for appear/disappear | For state |
+| `desiredState` | Target state for `mode='state'` (enabled, disabled, on, off, indeterminate, visible, offscreen) | For state |
+| `timeoutMs` | Max wait in milliseconds | No (default: 5000) |
+| `scope` | `window` (default) or `active_dialog` | No |
+| `parentElementId` | Restrict appear/disappear to a known subtree | No |
+| `requireUnique` | Require exactly one matching element for appear or disappear | No |
+
+### Capabilities
+
+- Wait for dialogs/controls to appear before acting
+- Wait for spinners/progress dialogs to disappear
+- Wait for a specific element to become enabled/visible/toggled
+- State mode rejects selectors; appear/disappear reject `elementId` and `desiredState`
+
+Appear/disappear waits use the same shared retry-and-scan time budget as
+`ui_find`. An interrupted scan reports `timeout`, not a successful disappearance.
+Windows accessibility calls already in progress can still overrun the time budget.
+
+---
+
+## 🧩 UI Batch (`ui_batch`)
+
+Run a sequence of UI automation steps against a window in a single call. Built for coding agents: a multi-field form fill + submit that would otherwise take many `ui_type`/`ui_click` round-trips becomes one request.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `windowHandle` | Target window handle. Used for every step unless a step overrides it. | Yes |
+| `steps` | JSON array of step objects (see below). | Yes |
+| `stopOnError` | Stop at the first failing step (default: `true`). | No |
+| `withSnapshot` | Attach the window element tree after the batch completes. | No |
+| `snapshotMode` | `full` (default), `auto`, or `reset` for the attached view. | No |
+
+### Step actions
+
+Each step is a JSON object with an `action` plus the fields that action needs:
+
+- `find` - selectors; resolves an element and exposes its id to the next step as `$prev`
+- `click` - required `elementId`, optional `doubleClick`
+- `type` - required `elementId`, plus `text` (optional `clearFirst`, `inputMode`)
+- `select` - required selection-control `elementId`, plus `value` (visible option text)
+- `wait` - `mode` (`appear`/`disappear`/`state`), selectors or `elementId`+`desiredState`, optional `timeoutMs`
+- `read` - `elementId` (omit for an explicit whole-window read), optional `includeChildren`
+- `snapshot` - capture the window element tree (optional `maxDepth`)
+- `key` - `key` (e.g. `enter`, `tab`, `f5`) with optional `modifiers` (`ctrl,shift,alt,win`) and `repeat`
+- `mouse` - `mouseAction` (`move`/`click`/`double_click`/`right_click`/`middle_click`/`drag`/`polyline`/`scroll`/`get_position`) plus `x`,`y` (and `endX`,`endY` for drag), optional `button`, `modifiers`, `direction`, `amount`
+- `polyline` - `points` as `[[x1,y1],[x2,y2],...]`, drawn as ONE continuous stroke; optional `button`
+
+### Mouse steps
+
+Mouse coordinates are **window-relative** by default (they inherit the batch `windowHandle`). Set `target` (`primary_screen`/`secondary_screen`) or `monitorIndex` on a step for screen-relative coordinates instead.
+
+The target window is activated before each mouse step, so a batch cannot fail with "Could not retrieve foreground window information". Setting `expectedProcessName` or `expectedWindowTitle` on a step suppresses that auto-activation and verifies the foreground window instead - the step fails cleanly if it doesn't match, and `stopOnError` halts the batch. Set `activate` explicitly to force either behavior.
+
+`polyline` presses once at the first point, traces every vertex, and releases at the last - a single continuous stroke. This is better than N segment-drags, which lift the pen at every vertex, and costs one round-trip instead of N.
+
+```json
+[{"action":"find","name":"Pencil","requireUnique":true},
+ {"action":"click","elementId":"$prev"},
+ {"action":"polyline","points":[[300,200],[500,200],[500,400],[300,200]]},
+ {"action":"mouse","mouseAction":"drag","x":600,"y":200,"endX":700,"endY":400}]
+```
+
+### Capabilities
+
+- One round-trip for multi-step workflows (fill username + password + submit) and for multi-stroke drawing
+- Per-step results: `{ index, action, success, summary, error?, elementId?, text? }`
+- Chain steps with `elementId: "$prev"` only after an unambiguous immediately preceding result
+- Reusable batch files should discover fresh controls on every run rather than persist action IDs
+- MCP tool filters apply to every step: `find`/`click`/`type`/`select`/`wait`/`read`/`snapshot`
+  require their matching `ui_*` tool, `key` requires `keyboard_control`, and `mouse`/`polyline`
+  require `mouse_control`. Any forbidden step rejects the entire batch before it starts,
+  regardless of `stopOnError`.
+- Add a `wait` step immediately after an action to verify consequences such as a button enabling,
+  a dialog closing, or confirmation text appearing
+- Selector steps accept `scope`, `parentElementId`, `requireUnique`, `visibleOnly`, and `enabledOnly`
+- `stopOnError=false` runs every step and reports each outcome
+- Mouse steps delegate to the same engine as `mouse_control`, so monitor resolution, foreground guards, secure-desktop and elevation checks behave identically
+
+### Perceive/act fusion (`withSnapshot`)
+
+`ui_click`, `ui_type`, `ui_select`, and `ui_batch` accept `withSnapshot=true`.
+When MCP tool filtering disables `ui_snapshot`, these requests are rejected before any action.
+With the default unfiltered configuration, behavior is unchanged.
+By default they attach the complete window tree as `postActionTree`, preserving existing behavior.
+Set `snapshotMode=auto` to receive `postActionChanges` when a remembered update is clearly smaller.
+
+---
+
+## 💾 File Save (`file_save`)
+
+Save files via a supported Save As dialog: triggers save, waits for the dialog, fills the path, and clicks Save once. Overwrite and error prompts stay open for an explicit caller decision. **English Windows only** (detects English dialog titles and button text).
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `windowHandle` | Target window handle (the app window, not a dialog) | Yes |
+| `filePath` | File path to save to (e.g., 'C:\\Users\\User\\file.txt') | No |
+| `triggerMode` | `shortcut` sends Ctrl+S; `save_as` sends F12 in Word/PowerPoint and Ctrl+Shift+S elsewhere; `wait` fills an already open owned Save As dialog | No (default: shortcut) |
+
+### Capabilities
+
+- Trigger Ctrl+S to save
+- Auto-detect Save As dialog appearance
+- Fill in filename automatically
+- Report overwrite prompts as `confirmation_required`, without choosing an answer
+- Leave error dialogs open and return the error for the agent to inspect
+- Works with Office apps, Notepad, and more
+
+Save requires the target window and filename field to have focus before sending input.
+Dialog discovery checks ownership, title, and a recognized filename field; a Save-like title alone is insufficient.
+Native window ownership is used even when UI Automation nests the dialog or does not mark it as modal.
+The current filename field must contain the exact full path before Save is pressed, even if the dialog replaced that field after typing.
+When a path is supplied, success requires
+observing a new file or a change in its size, creation time, or last-write time after the shortcut.
+An unchanged existing file is not proof of a successful save; if no change is observed, the
+operation reports an unverified outcome. Error and overwrite detection is restricted to the
+requested Save dialog. Neither the error message nor the Save dialog is automatically dismissed.
+Do not automatically repeat it: the original shortcut may still be processed by the application.
+
+---
+
+## 📂 File Open (`file_open`)
+
+Open an existing file via the standard Windows Open dialog — the counterpart to `file_save`. Sends Ctrl+O, waits for the Open dialog, types the path into the File name field, and clicks Open. **English Windows only**; the file must already exist so the operation is deterministic and never hangs on a "file not found" prompt.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `windowHandle` | Target window handle (the app window, not a dialog) | Yes |
+| `filePath` | Absolute path of an existing file to open (forward/back slashes both work) | Yes |
+| `includeDiagnostics` | Include timing/diagnostic details in the response (default: false) | No |
+| `triggerMode` | `shortcut` sends Ctrl+O; `wait` waits for a dialog opened by a prior click | No (default: shortcut) |
+| `timeoutMs` | Maximum wait for the native dialog | No (default: 5000) |
+
+### Capabilities
+
+- Trigger Ctrl+O to open
+- Auto-detect Open dialog appearance (shares the Save-As dialog engine)
+- `triggerMode='wait'` supports browser-to-native-dialog handoff after `ui_click`
+- Dialog selection prefers the enabled popup owned by the requested app and reports observed candidate windows on timeout
+- Fill in the file path and click Open
+- Validates the file exists up front for deterministic behavior
+- Enters the path and submits at most once. A mismatch or an open dialog is reported without retyping or resubmitting.
+
+---
+
+## 📋 Clipboard (`clipboard`)
+
+Read and write the Windows text clipboard — often the fastest way to move bulk text in and out of desktop apps, far cheaper than typing character-by-character or OCR.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `action` | `get` (read text), `set` (write text), or `clear` | Yes |
+| `text` | Text to place on the clipboard. Required for `set`; an empty string clears | For `set` |
+
+### Capabilities
+
+- Pull text OUT of an app: focus it, `keyboard_control(key='c', modifiers='ctrl')`, then `clipboard(action='get')`
+- Push text INTO an app: `clipboard(action='set', text='...')` then `keyboard_control(key='v', modifiers='ctrl')`
+- `get` returns `text`, `length`, and `hasText`
+- Uses the raw Win32 clipboard API on a dedicated STA thread (no message-pump dependency)
+
+---
+
+## Reusable workflows and macro retirement
+
+`ui_macro` and the CLI `macro`/`ui-macro` commands have been removed. Keep reusable steps in a
+project-owned JSON array and use `ui_batch` or `wincli ui batch --steps-file workflow.json`.
+Find controls afresh on each run and reference them with `$prev`.
+
+Existing `%LOCALAPPDATA%\Sbroenne.WindowsMcp\macros` files are not deleted or modified.
+They are no longer loaded or replayed. Extract a saved file's `steps` array to reuse it as
+a batch file; do not pass the entire saved macro object as the batch.
+
+---
+
+## ⚙️ Process Management (`process`)
+
+List and terminate running processes, task-manager style — useful for finding a hung application before automating it, or freeing resources after a workflow.
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `action` | `list` (enumerate) or `kill` (terminate) | Yes |
+| `name` | For `list`: case-insensitive substring filter. For `kill`: terminate all processes with this name | For kill (or `pid`) |
+| `pid` | For `kill`: the process id to terminate (takes precedence over `name`) | For kill (or `name`) |
+| `sortBy` | For `list`: `memory` (default), `name`, or `pid` | No |
+| `limit` | For `list`: max rows to return (1–500, default 20) | No |
+| `force` | For `kill`: also terminate the entire child process tree | No |
+
+### Capabilities
+
+- `list` returns `pid`, `name`, and `memoryMb` per process, ordered for token economy
+- `kill` by `pid` (precise) or by `name` (all matches)
+- Critical Windows processes (System, csrss, wininit, winlogon, services, lsass, …) and the automation server's own process are **protected** — the tool refuses to terminate them
+- CPU usage is intentionally not reported (an accurate percentage requires sampling over time, which would add latency)
+
+---
+
+## 🖱️ Mouse Control (`mouse_control`)
+
+Control mouse input on Windows with full multi-monitor and DPI awareness.
+
+### Actions
+
+| Action | Description | Required Parameters |
+|--------|-------------|---------------------|
+| `move` | Move cursor to coordinates | `x`, `y`, `target` or `monitorIndex` |
+| `click` | Left-click at coordinates | optional: `x`, `y` |
+| `double_click` | Double-click at coordinates | optional: `x`, `y` |
+| `right_click` | Right-click at coordinates | optional: `x`, `y` |
+| `middle_click` | Middle-click at coordinates | optional: `x`, `y` |
+| `drag` | Drag from current position to coordinates | `x`, `y`, `endX`, `endY` |
+| `polyline` | One continuous stroke through every vertex | `points` |
+| `scroll` | Scroll at coordinates | `direction`, optional: `x`, `y`, `amount` |
+| `get_position` | Get current cursor position with monitor context | none |
+
+### Parameters
+
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| `action` | The mouse action to perform | Yes |
+| `x` / `y` | Coordinates, relative to the monitor (or the window when `windowHandle` is set) | Per action |
+| `endX` / `endY` | Drag end position | For `drag` |
+| `points` | JSON array of `[x,y]` pairs, e.g. `[[650,430],[750,480],[750,620]]` (at least 2) | For `polyline` |
+| `button` | `left`, `right`, or `middle` for drag/polyline | No |
+| `modifiers` | `ctrl`, `shift`, `alt` (comma-separated) | No |
+| `direction` / `amount` | Scroll direction and click count | For `scroll` |
+| `target` / `monitorIndex` | Monitor targeting | With coordinates |
+| `windowHandle` | Window-relative coordinate mode and foreground guard | No |
+| `expectedWindowTitle` / `expectedProcessName` | Abort unless the foreground window matches | No |
+
+### Capabilities
+
+- Click, double-click, right-click, middle-click
+- Move cursor to absolute coordinates
+- Drag operations with hold/release
+- Continuous multi-point strokes via `polyline` - press once, trace every vertex, release once. Unlike N separate drags there is no pen lift at the vertices, so freehand shapes render as one stroke.
+- Scroll up/down/left/right
+- Multi-monitor support with DPI awareness
+- Easy targeting with `target='primary_screen'` or `'secondary_screen'`
+- Modifier key support (Ctrl+click, Shift+click, etc.)
+- Wrong window detection with `windowHandle`, `expectedWindowTitle`, or `expectedProcessName`
+
+---
+
+## ⌨️ Keyboard Control (`keyboard_control`)
+
+Control keyboard input on Windows with Unicode support.
+
+### Actions
+
+| Action | Description | Required Parameters |
+|--------|-------------|---------------------|
+| `type` | Type text using Unicode input | `text` |
+| `press` | Press and release a key (with optional modifiers) | `key`, optional `modifiers` |
+| `key_down` | Hold a key down | `key` |
+| `key_up` | Release a held key | `key` |
+| `sequence` | Multiple keys in order | `sequence` |
+| `release_all` | Release all held keys | none |
+| `get_keyboard_layout` | Query current layout | none |
+| `wait_for_idle` | Wait for keyboard input to be processed | none |
+
+### Supported Keys
+
+#### Function Keys
+`f1` through `f24`
+
+#### Navigation
+`up`, `down`, `left`, `right`, `home`, `end`, `pageup`, `pagedown`, `insert`, `delete`
+
+#### Control
+`enter`, `tab`, `escape`, `space`, `backspace`
+
+#### Modifiers
+`ctrl`, `shift`, `alt`, `win`
+
+#### Media
+`volumemute`, `volumedown`, `volumeup`, `mediaplaypause`, `medianexttrack`, `mediaprevtrack`, `mediastop`
+
+#### Special
+`copilot` (Windows 11 Copilot+ PCs)
+
+#### Browser
+`browserback`, `browserforward`, `browserrefresh`, `browserstop`, `browsersearch`, `browserfavorites`, `browserhome`
+
+### Capabilities
+
+- **Unicode text typing** (layout-independent) - type any character in any language
+- **Virtual key presses** - Enter, Tab, Escape, F1-F24, navigation keys
+- **Key combinations** - Use `press` with `modifiers` parameter: `press(key='s', modifiers='ctrl')` for Ctrl+S
+- **Key sequences** - multi-key macros with configurable timing
+- **Hold/release keys** - for Shift-select and other hold operations
+- **Special keys** - Copilot key (Windows 11), media controls, browser keys
+- **Layout detection** - query current keyboard layout (BCP-47 format)
+- **Clear before typing** - use `clearFirst` to select all (Ctrl+A) before typing new text
+- **Wait for idle** - wait for keyboard input to be processed before continuing
+
+---
+
+## 🪟 Window Management (`window_management`)
+
+Control windows on the Windows desktop. Use `app` tool to launch applications, then use this tool to manage the windows.
+
+### Actions
+
+| Action | Description | Required Parameters |
+|--------|-------------|---------------------|
+| `list` | List all visible windows | none |
+| `find` | Find windows by title or process name | `title` or `processName` |
+| `activate` | Bring window to foreground | `handle` |
+| `get_foreground` | Get current foreground window | none |
+| `get_state` | Get current window state (normal, minimized, maximized, hidden) | `handle` |
+| `minimize` | Minimize window | `handle` |
+| `maximize` | Maximize window | `handle` |
+| `restore` | Restore window from min/max | `handle` |
+| `close` | Close window (sends WM_CLOSE) | `handle`, optional `discardChanges` |
+| `move` | Move window to position | `handle`, `x`, `y` |
+| `resize` | Resize window | `handle`, `width`, `height` |
+| `set_bounds` | Move and resize atomically | `handle`, `x`, `y`, `width`, `height` |
+| `wait_for` | Wait for window to appear | `title` |
+| `wait_for_state` | Wait for window to reach a specific state | `handle`, `state`, `timeoutMs` |
+| `move_to_monitor` | Move window to a specific monitor | `handle`, `target` or `monitorIndex` |
+| `move_and_activate` | Move to position and activate atomically | `handle`, optional `x`, `y` |
+| `ensure_visible` | Ensure window is visible (restore if minimized, activate) | `handle` |
+
+### Close with discardChanges
+
+Use `discardChanges=true` to automatically dismiss "Save?" dialogs when closing:
+
+```
+window_management(action='close', handle='123456', discardChanges=true)
+```
+
+**English Windows only** — detects English button text like "Don't Save".
+
+### Capabilities
+
+- List all visible top-level windows with titles, handles, process info, and bounds
+- Locate windows by title (substring or regex matching)
+- Bring windows to foreground with focus
+- Minimize, maximize, restore, and close windows
+- Position and size windows with move, resize, or set_bounds
+- Wait for a window to appear with configurable timeout
+- Move windows between monitors
+- Full multi-monitor support with DPI awareness
+- Proper UWP/Store app detection and handling
+- Cloaking detection to filter out virtual desktop and shell-managed windows
+
+---
+
+## 📸 Screenshot Capture (`screenshot_control`)
+
+Capture screenshots on Windows with LLM-optimized defaults. **By default, screenshots include annotated element overlays** with numbered labels and structured element data — perfect for UI discovery.
+
+### Actions
+
+| Action | Description | Required Parameters |
+|--------|-------------|---------------------|
+| `capture` | Capture screenshot (with element annotations by default) | optional `target` |
+| `list_monitors` | List all connected monitors (with DPI, scale, orientation, and work area) | none |
+
+Each `list_monitors` entry includes `displayNumber`, `width`/`height`, `x`/`y`, `isPrimary`, `effectiveDpi`, `scale` (e.g. `1.5` = 150%), `orientation` (`landscape`/`portrait`), and `workArea` (the desktop rectangle minus the taskbar — handy for placing windows where the taskbar won't cover them).
+
+### Capture Targets
+
+| Target | Description | Additional Parameters |
+|--------|-------------|----------------------|
+| `primary_screen` | Capture primary monitor (default) | none |
+| `secondary_screen` | Capture secondary monitor (2-monitor setups) | none |
+| `monitor` | Capture specific monitor | `monitorIndex` |
+| `window` | Capture specific window by handle | `windowHandle` |
+| `region` | Capture rectangular region | `regionX`, `regionY`, `regionWidth`, `regionHeight` |
+| `all_monitors` | Composite of all displays | none |
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `action` | string | `"capture"` | `capture` or `list_monitors` |
+| `target` | string | `"primary_screen"` | Screen, monitor, window, region, or all-monitors target |
+| `monitorIndex` | integer | `null` | Monitor index when target is `monitor` |
+| `windowHandle` | string | `null` | Window handle when target is `window` |
+| `annotate` | boolean | `true` | Include numbered element overlays and structured element data |
+| `includeCursor` | boolean | `false` | Include mouse cursor in capture |
+| `imageFormat` | string | `"jpeg"` | Output format: "jpeg", "png" |
+| `quality` | integer | `60` | Compression quality for JPEG (1-100) |
+| `outputMode` | string | `"inline"` | "inline" (base64) or "file" (save to disk) |
+| `outputPath` | string | `null` | Custom file path when using file output mode |
+
+### Annotated Screenshot Response
+
+When `annotate=true` (default), the response includes control details.
+**The image is omitted by default** (`includeImage=false`) to avoid unnecessary
+image input. Example response fields:
+
+```json
+{
+  "success": true,
+  "width": 1280,
+  "height": 720,
+  "captureBounds": { "x": 80, "y": 90, "width": 1600, "height": 900 },
+  "scaleX": 1.25,
+  "scaleY": 1.25,
+  "annotatedElements": [
+    { "index": 1, "id": "...", "name": "File", "type": "MenuItem", "click": [130, 120, 0] },
+    { "index": 2, "id": "...", "name": "Edit", "type": "MenuItem", "click": [180, 120, 0] }
+  ],
+  "elementCount": 2
+}
+```
+
+Use a control's `id` for `ui_click` or `ui_type`. For a mouse click, `click`
+contains `[x, y, monitorIndex]` in physical pixels relative to that monitor.
+Pass `monitorIndex`, not `windowHandle`, with these coordinates.
+
+The numbered labels match the returned controls. If working from image pixels
+instead, apply `scaleX` and `scaleY` and the origin in `captureBounds` before
+converting to the chosen mouse target's coordinates. This metadata is also
+included in plain captures.
+
+### Plain Screenshot (No Annotations)
+
+For simple screenshots without element discovery:
+
+```json
+{
+  "action": "capture",
+  "windowHandle": "123456",
+  "annotate": false
+}
+```
+
+### Capabilities
+
+- **Annotated by Default** - Screenshots include numbered element overlays and structured data for UI discovery
+- **Smaller annotated images** - JPEG quality 60 by default; scaled captures report the image-to-screen scale
+- **Easy targeting** - Use `window_management(action='find', title='...')` to get a handle, then pass to `screenshot_control`
+- **Capture any monitor** - Screenshot any connected display by index
+- **Capture windows** - Screenshot a specific window (even if partially obscured)
+- **Capture regions** - Screenshot an arbitrary rectangular area
+- **Capture all monitors** - Composite screenshot of entire virtual desktop
+- **Format options** - JPEG (default) or PNG with configurable quality (1-100)
+- **Auto-scaling** - Large captures are scaled to the model-friendly output size
+- **Output modes** - Inline base64 (default) or file path for zero-overhead file workflows
+- **Cursor inclusion** - Optionally include mouse cursor in captures
+- **Multi-monitor aware** - Supports extended desktop configurations
+- **DPI aware** - Correct pixel dimensions on high-DPI displays
+
+---
+
+## Error Handling
+
+The server handles common Windows security scenarios:
+
+| Error Code | Description |
+|------------|-------------|
+| `ElevatedWindowActive` | Target window is running as Administrator |
+| `SecureDesktopActive` | UAC prompt or lock screen is active |
+| `InvalidKey` | Unrecognized key name |
+| `InputBlocked` | Input was blocked by UIPI |
+| `Timeout` | Operation timed out |
+| `OperationTimeout` | Operation timed out (with configured timeout duration) |
+| `InvalidMonitorIndex` | Monitor index out of range |
+| `InvalidWindowHandle` | Window handle is invalid or window no longer exists |
+| `MissingRequiredParameter` | A required parameter was not provided |
+| `CoordinatesOutOfBounds` | Coordinates are outside monitor boundaries |
+| `WindowMinimized` | Cannot capture minimized window |
+| `WindowNotVisible` | Window is not visible |
+| `InvalidRegion` | Capture region has invalid dimensions |
+| `CaptureFailed` | Screenshot capture operation failed |
+| `SizeLimitExceeded` | Requested capture exceeds maximum allowed size |
+| `WrongTargetWindow` | Foreground window doesn't match expected title/process (use expectedWindowTitle/expectedProcessName) |
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_WINDOWS_KEYBOARD_CHUNK_DELAY_MS` | `10` | Delay between text chunks |
+| `MCP_WINDOWS_KEYBOARD_KEY_DELAY_MS` | `10` | Delay between key presses |
+| `MCP_WINDOWS_KEYBOARD_SEQUENCE_DELAY_MS` | `50` | Delay between sequence keys |
+| `MCP_WINDOWS_MOUSE_MOVE_DELAY_MS` | `10` | Delay after mouse move |
+| `MCP_WINDOWS_MOUSE_CLICK_DELAY_MS` | `50` | Delay after mouse click |
+| `MCP_WINDOWS_WINDOW_TIMEOUT_MS` | `5000` | Default window operation timeout |
+| `MCP_WINDOWS_WINDOW_WAITFOR_TIMEOUT_MS` | `30000` | Default wait_for timeout |
+| `MCP_WINDOWS_WINDOW_PROPERTY_TIMEOUT_MS` | `100` | Timeout for querying window properties |
+| `MCP_WINDOWS_WINDOW_POLLING_INTERVAL_MS` | `250` | Polling interval for wait_for |
+| `MCP_WINDOWS_WINDOW_ACTIVATION_MAX_RETRIES` | `3` | Max retries for window activation |
+| `MCP_WINDOWS_SCREENSHOT_TIMEOUT_MS` | `5000` | Screenshot operation timeout |
+| `MCP_WINDOWS_SCREENSHOT_MAX_PIXELS` | `33177600` | Maximum capture size (default 8K) |
+
+---
+
+## Known Limitations
+
+### UAC & Elevated Processes
+
+Windows security prevents any non-elevated process from interacting with UAC prompts or elevated (Administrator) windows. **This is a fundamental Windows security boundary that no MCP server can bypass.**
+
+| Scenario | Behavior | Workaround |
+|----------|----------|------------|
+| `winget install` (or similar) triggers UAC prompt | Command may report success, but UAC blocks the installer until user approves | Run terminal as Administrator before invoking winget |
+| Target app is running as Administrator | `ui_click`, `ui_type`, `keyboard_control` return `ElevatedWindowActive` error | Run the MCP server elevated, or launch the app without elevation |
+| UAC prompt appears mid-workflow | AI cannot see or interact with the secure desktop | User must manually approve the UAC prompt |
+| Secure desktop (lock screen, Ctrl+Alt+Del) | All input methods blocked | User must unlock manually |
+
+### Why This Matters
+
+Many common operations trigger elevation:
+- Installing software (`winget`, `choco`, MSI installers)
+- Modifying system settings
+- Apps that "Run as Administrator"
+- Antivirus, device manager, service management tools
+
+When building automation workflows, **plan for elevation boundaries**:
+1. Pre-install required software before running AI workflows
+2. Use per-user installers when available (e.g., VS Code user installer)
+3. Run the MCP server elevated if you need to automate admin tasks (with appropriate caution)
+
+---
+
+## Security Considerations
+
+- **UIPI**: Windows User Interface Privilege Isolation blocks input to elevated windows from non-elevated processes
+- **Secure Desktop**: Input cannot be sent during UAC prompts or lock screen
+- **Input Simulation**: The server uses `SendInput` which is the standard Windows API for simulating input

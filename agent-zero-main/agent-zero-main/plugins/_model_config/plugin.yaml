@@ -1,0 +1,9 @@
+name: _model_config
+title: Model Configuration
+description: Manages reusable model presets and selects them globally, per project, per agent profile, and per chat.
+version: 2.1.0
+always_enabled: true
+settings_sections:
+  - agent
+per_project_config: true
+per_agent_config: true

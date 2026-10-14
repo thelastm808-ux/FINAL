@@ -1,0 +1,730 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Sbroenne.WindowsMcp.Automation;
+using Sbroenne.WindowsMcp.Capture;
+using Sbroenne.WindowsMcp.Input;
+using Sbroenne.WindowsMcp.Models;
+using Sbroenne.WindowsMcp.Window;
+
+namespace Sbroenne.WindowsMcp.Tests.Integration.ElectronHarness;
+
+/// <summary>
+/// Integration tests for UI Automation against an Electron application.
+/// These tests verify that UI Automation works correctly with Chromium-based accessibility.
+/// </summary>
+[Collection("ElectronHarness")]
+[Trait("Category", "RequiresDesktop")]
+public sealed class UIAutomationElectronTests : IDisposable
+{
+    private readonly ElectronHarnessFixture _fixture;
+    private readonly UIAutomationService _automationService;
+    private readonly UIAutomationThread _staThread;
+    private readonly WindowEnumerator _windowEnumerator;
+    private readonly WindowService _windowService;
+    private readonly string _windowHandle;
+
+    public UIAutomationElectronTests(ElectronHarnessFixture fixture)
+    {
+        _fixture = fixture;
+        _fixture.Reset();
+
+        _windowHandle = _fixture.WindowHandleString;
+
+        // Create real services for integration testing
+        _staThread = new UIAutomationThread();
+
+        var elevationDetector = new ElevationDetector();
+        var secureDesktopDetector = new SecureDesktopDetector();
+        var monitorService = new MonitorService();
+
+        _windowEnumerator = new WindowEnumerator(elevationDetector);
+        var windowActivator = new WindowActivator();
+        _windowService = new WindowService(
+            _windowEnumerator,
+            windowActivator,
+            monitorService,
+            secureDesktopDetector);
+
+        var mouseService = new MouseInputService();
+        var keyboardService = new KeyboardInputService();
+
+        _automationService = new UIAutomationService(
+            _staThread,
+            monitorService,
+            mouseService,
+            keyboardService,
+            windowActivator,
+            elevationDetector,
+            NullLogger<UIAutomationService>.Instance);
+    }
+
+    public void Dispose()
+    {
+        _staThread.Dispose();
+        _automationService.Dispose();
+    }
+
+    #region GetTree Tests - Electron/Chromium Accessibility
+
+    [Fact]
+    public async Task GetTree_ElectronWindow_ReturnsHierarchy()
+    {
+        // Act
+        var result = await _automationService.GetTreeAsync(
+            windowHandle: _windowHandle,
+            parentElementId: null,
+            maxDepth: 5,
+            controlTypeFilter: null);
+
+        // Assert
+        Assert.True(result.Success, $"GetTree failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Tree);
+        Assert.NotEmpty(result.Tree!);
+
+        // The root should be the window
+        var root = result.Tree![0];
+        Assert.Contains("Electron", root.Name ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetTree_ElectronWindow_ContainsDocumentElement()
+    {
+        // Electron apps expose their content through a Document element
+        var result = await _automationService.GetTreeAsync(
+            windowHandle: _windowHandle,
+            parentElementId: null,
+            maxDepth: 5,
+            controlTypeFilter: null);
+
+        Assert.True(result.Success);
+
+        // Find Document element in the tree
+        var hasDocument = ContainsControlTypeInTree(result.Tree!, "Document");
+        Assert.True(hasDocument, "Electron window should contain a Document element for web content");
+    }
+
+    [Theory]
+    [InlineData("Home")]
+    [InlineData("Forms")]
+    public async Task AutoSnapshot_AfterSmallRendererChange_ReturnsDiff(string initialDestination)
+    {
+        await NavigateAndWaitForStatusAsync(initialDestination);
+        // Fixture.Reset restores the viewport, but leaves the previous renderer status intact.
+        await NavigateAndWaitForStatusAsync("Home");
+
+        using var state = new SnapshotStateService();
+        var key = SnapshotRequestKey.Create(_windowHandle, null, 5, null);
+        var baseline = await state.CaptureAsync(
+            key,
+            SnapshotMode.Reset,
+            token => _automationService.GetTreeAsync(_windowHandle, null, 5, null, token),
+            CancellationToken.None);
+        Assert.True(baseline.Success, baseline.ErrorMessage);
+        Assert.Equal("full", baseline.Kind);
+        Assert.True(ContainsNameInTree(baseline.Tree, "Navigated to Home"));
+
+        // Poll raw trees so waiting for Chromium does not advance the remembered snapshot.
+        await NavigateAndWaitForStatusAsync("Forms");
+
+        var result = await state.CaptureAsync(
+            key,
+            SnapshotMode.Auto,
+            token => _automationService.GetTreeAsync(_windowHandle, null, 5, null, token),
+            CancellationToken.None);
+
+        Assert.True(result.Success, result.ErrorMessage);
+        Assert.Equal("diff", result.Kind);
+        Assert.Contains(result.Changes ?? [], change =>
+            (change.Set is not null &&
+             change.Set.TryGetValue("name", out var name) &&
+             Equals(name, "Navigated to Forms")) ||
+            ContainsNameInTree(change.Node is null ? null : [change.Node], "Navigated to Forms"));
+    }
+
+    private async Task NavigateAndWaitForStatusAsync(string destination)
+    {
+        var expectedStatus = $"Navigated to {destination}";
+        var click = await _automationService.ObserveAndClickAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = $"Navigate {destination}",
+            ControlType = "Button",
+            TimeoutMs = 10000
+        });
+        Assert.True(click.Success, click.ErrorMessage);
+
+        UIAutomationResult? observed = null;
+        var ready = await TestWait.RetryUntilAsync(
+            attempt: async () =>
+            {
+                observed = await _automationService.GetTreeAsync(_windowHandle, null, 5, null);
+                Assert.True(observed.Success, observed.ErrorMessage);
+            },
+            condition: () => ContainsNameInTree(observed?.Tree, expectedStatus),
+            timeout: TimeSpan.FromSeconds(10));
+        Assert.True(ready, $"Electron snapshot did not contain status '{expectedStatus}'.");
+    }
+
+    private static bool ContainsNameInTree(UIElementCompactTree[]? elements, string name) =>
+        elements?.Any(element =>
+            string.Equals(element.Name, name, StringComparison.Ordinal) ||
+            ContainsNameInTree(element.Children, name)) == true;
+
+    #endregion
+
+    #region Find Element Tests - ARIA Labels
+
+    [Fact]
+    public async Task Find_ButtonByAriaLabel_ReturnsButton()
+    {
+        // In Electron/Chromium, ARIA labels become the Name property
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Navigate Home",
+            ControlType = "Button",
+        });
+
+        // Assert
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+        Assert.Equal("Button", result.Items![0].Type);
+    }
+
+    [Fact]
+    public async Task Find_TextInputByAriaLabel_ReturnsEdit()
+    {
+        // Find the username input by its ARIA label
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Username Input",
+            ControlType = "Edit",
+        });
+
+        // Assert
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+        Assert.Equal("Edit", result.Items![0].Type);
+    }
+
+    [Fact]
+    public async Task Find_ComboBoxByAriaLabel_ReturnsComboBox()
+    {
+        // In Chromium, HTML select elements are exposed as ComboBox
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Priority Selection",
+            ControlType = "ComboBox",
+            VisibleOnly = false,
+        });
+
+        // Assert
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+        Assert.Equal("ComboBox", result.Items![0].Type);
+    }
+
+    [Fact]
+    public async Task Find_LinkByAriaLabel_ReturnsHyperlinkOrText()
+    {
+        // Find any element with 'Link' in the name (links in the nav or elsewhere)
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Main navigation",
+        });
+
+        // Assert - navigation landmark should be found
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+    }
+
+    [Fact]
+    public async Task Find_MultipleButtons_ReturnsAll()
+    {
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+        });
+
+        // Assert
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        // We have at least 3 buttons: Primary, Secondary, Submit
+        Assert.True(result.Items!.Length >= 3, $"Expected at least 3 buttons, found {result.Items!.Length}");
+    }
+
+    #endregion
+
+    #region Element Properties Tests
+
+    [Fact]
+    public async Task Find_Element_HasClickCoordinates()
+    {
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Navigate Home",
+            ControlType = "Button",
+        });
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.Items);
+        var button = result.Items![0];
+        Assert.NotNull(button.Click);
+        Assert.Equal(3, button.Click.Length); // [x, y, monitorIndex]
+        Assert.True(button.Click[0] > 0, "Click X should be positive");
+        Assert.True(button.Click[1] > 0, "Click Y should be positive");
+    }
+
+    [Fact]
+    public async Task Find_Element_HasMonitorIndex()
+    {
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Navigate Home",
+            ControlType = "Button",
+        });
+
+        // Assert
+        Assert.True(result.Success);
+        Assert.NotNull(result.Items);
+        var button = result.Items![0];
+        Assert.NotNull(button.Click);
+        Assert.True(button.Click[2] >= 0, "MonitorIndex should be non-negative");
+    }
+
+    #endregion
+
+    #region Click Tests
+
+    [Fact]
+    public async Task FindAndClick_Button_Succeeds()
+    {
+        // Act - Click the button
+        var clickResult = await _automationService.ObserveAndClickAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Navigate Home",
+            ControlType = "Button",
+        });
+
+        // Assert
+        Assert.True(clickResult.Success, $"FindAndClick failed: {clickResult.ErrorMessage}");
+    }
+
+    #endregion
+
+    #region Type Tests
+
+    [Fact]
+    public async Task FindAndType_InTextInput_EntersText()
+    {
+        var testText = "test_user_123";
+
+        // Act
+        var typeResult = await _automationService.ObserveAndTypeAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                Name = "Username Input",
+                ControlType = "Edit",
+            },
+            text: testText,
+            clearFirst: true);
+
+        // Assert
+        Assert.True(typeResult.Success, $"FindAndType failed: {typeResult.ErrorMessage}");
+
+        // Verify by reading back
+        await Task.Delay(100);
+
+        var findResult = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Username Input",
+            ControlType = "Edit",
+        });
+
+        Assert.True(findResult.Success);
+        Assert.NotNull(findResult.Items);
+        var inputId = findResult.Items![0].Id;
+        Assert.NotNull(inputId);
+
+        var getTextResult = await _automationService.GetTextAsync(
+            elementId: inputId,
+            windowHandle: _windowHandle,
+            includeChildren: false);
+
+        Assert.True(getTextResult.Success, $"GetText failed: {getTextResult.ErrorMessage}");
+        Assert.Equal(testText, getTextResult.Text);
+    }
+
+    [Fact]
+    public async Task FindAndType_AutoMode_EmitsBrowserInputEvent()
+    {
+        const string testText = "react-style-input";
+
+        var typeResult = await _automationService.ObserveAndTypeAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                Name = "Username Input",
+                ControlType = "Edit",
+            },
+            text: testText,
+            clearFirst: true);
+
+        Assert.True(typeResult.Success, $"FindAndType failed: {typeResult.ErrorMessage}");
+        Assert.Equal("keyboard", typeResult.Diagnostics?.ActionPath);
+        Assert.Equal("Username Input", typeResult.Diagnostics?.TargetElement?.Name);
+
+        UIAutomationResult? status = null;
+        var eventObserved = await TestWait.RetryUntilAsync(
+            async () =>
+            {
+                status = await _automationService.FindElementsAsync(new ElementQuery
+                {
+                    WindowHandle = _windowHandle,
+                    Name = $"Username input observed: {testText}",
+                    ControlType = "Text",
+                });
+            },
+            () => status?.Success == true,
+            TimeSpan.FromSeconds(3));
+
+        Assert.True(eventObserved, "Browser input event was not observed after ui_type.");
+    }
+
+    #endregion
+
+    #region Toggle Tests
+
+    [Fact]
+    public async Task Invoke_Button_Succeeds()
+    {
+        // Find a button to invoke
+        var findResult = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Apply Priority",
+            ControlType = "Button",
+            VisibleOnly = false,
+        });
+
+        Assert.True(findResult.Success);
+        Assert.NotNull(findResult.Items);
+        var buttonId = findResult.Items![0].Id;
+        Assert.NotNull(buttonId);
+
+        // Act - Invoke the button
+        var invokeResult = await _automationService.InvokePatternAsync(
+            elementId: buttonId,
+            pattern: "Invoke",
+            value: null);
+
+        // Assert - Allow elevated target error in CI where runner may have different elevation
+        if (invokeResult.ErrorMessage?.Contains("elevated", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            // Skip this assertion in CI - elevation detection is environment-specific
+            return;
+        }
+
+        Assert.True(invokeResult.Success, $"Invoke failed: {invokeResult.ErrorMessage}");
+    }
+
+    #endregion
+
+    #region Focus Tests
+
+    [Fact]
+    public async Task Focus_TextInput_SetsFocus()
+    {
+        // Try finding the password input - this may fail in CI due to timing
+        var findResult = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Password Input",
+            ControlType = "Edit",
+        });
+
+        Assert.True(findResult.Success, $"Find failed: {findResult.ErrorMessage}");
+        Assert.NotNull(findResult.Items);
+        Assert.NotEmpty(findResult.Items);
+
+        var inputId = findResult.Items![0].Id;
+        Assert.NotNull(inputId);
+
+        // Act
+        var focusResult = await _automationService.FocusElementAsync(inputId);
+
+        Assert.True(focusResult.Success, $"Focus failed: {focusResult.ErrorMessage}");
+    }
+
+    #endregion
+
+    #region Scoped Search Tests
+
+    [Fact]
+    public async Task Find_ScopedToParent_OnlyReturnsDescendants()
+    {
+        // First find the main navigation group
+        var groupResult = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Main navigation",
+        });
+
+        Assert.True(groupResult.Success);
+        Assert.NotNull(groupResult.Items);
+        var groupId = groupResult.Items![0].Id;
+        Assert.NotNull(groupId);
+
+        // Now search for buttons within that group only
+        var buttonResult = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ParentElementId = groupId,
+            ControlType = "Button",
+        });
+
+        // Assert
+        Assert.True(buttonResult.Success);
+        Assert.NotNull(buttonResult.Items);
+        // Should find the 4 navigation buttons (Home, Forms, Data, Settings)
+        Assert.True(buttonResult.Items!.Length >= 4, $"Expected at least 4 buttons in navigation, found {buttonResult.Items!.Length}");
+    }
+
+    #endregion
+
+    #region WaitFor Tests
+
+    [Fact]
+    public async Task WaitFor_ExistingElement_ReturnsQuickly()
+    {
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        var result = await _automationService.WaitForElementAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                Name = "Navigate Home",
+                ControlType = "Button",
+            },
+            timeoutMs: 5000);
+
+        stopwatch.Stop();
+
+        // Assert
+        Assert.True(result.Success, $"WaitFor failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+        Assert.True(stopwatch.ElapsedMilliseconds < 2000, "WaitFor should return quickly for existing elements");
+    }
+
+    [Fact]
+    public async Task WaitFor_NonExistentElement_TimesOut()
+    {
+        // Act - Wait for an element that doesn't exist with short timeout
+        var result = await _automationService.WaitForElementAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                Name = "This Element Does Not Exist 12345",
+                ControlType = "Button",
+            },
+            timeoutMs: 1000);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("timeout", result.ErrorMessage?.ToLowerInvariant() ?? string.Empty);
+    }
+
+    [Fact]
+    public async Task WaitFor_MultipleElements_ReturnsFirst()
+    {
+        // Act - Wait for any button (multiple exist)
+        var result = await _automationService.WaitForElementAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                ControlType = "Button",
+            },
+            timeoutMs: 5000);
+
+        // Assert
+        Assert.True(result.Success, $"WaitFor failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+    }
+
+    #endregion
+
+    #region Combined Workflow Tests
+
+    [Fact]
+    public async Task CombinedWorkflow_FillFormAndSubmit_Succeeds()
+    {
+        // This test simulates a realistic form-filling workflow
+
+        // Step 1: Fill username
+        var usernameResult = await _automationService.ObserveAndTypeAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                Name = "Username Input",
+                ControlType = "Edit",
+            },
+            text: "testuser",
+            clearFirst: true);
+        Assert.True(usernameResult.Success, $"Username type failed: {usernameResult.ErrorMessage}");
+
+        // Step 2: Fill email
+        var emailResult = await _automationService.ObserveAndTypeAsync(
+            new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                Name = "Email Input",
+                ControlType = "Edit",
+            },
+            text: "test@example.com",
+            clearFirst: true);
+        Assert.True(emailResult.Success, $"Email type failed: {emailResult.ErrorMessage}");
+
+        // Step 3: Click a button (navigate home to verify button click works)
+        var clickResult = await _automationService.ObserveAndClickAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            Name = "Navigate Home",
+            ControlType = "Button",
+        });
+
+        Assert.True(clickResult.Success, $"Button click failed: {clickResult.ErrorMessage}");
+    }
+
+    #endregion
+
+    #region Framework Detection Tests
+
+    /// <summary>
+    /// Verifies Chromium framework detection in diagnostics.
+    /// </summary>
+    [Fact]
+    public async Task Diagnostics_DetectsChromiumFramework()
+    {
+        var result = await _automationService.GetTreeAsync(
+            windowHandle: _windowHandle,
+            parentElementId: null,
+            maxDepth: 2,
+            controlTypeFilter: null);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Diagnostics);
+        Assert.Equal("Chromium/Electron", result.Diagnostics.DetectedFramework);
+    }
+
+    /// <summary>
+    /// Tests that FoundIndex works correctly in Electron apps.
+    /// </summary>
+    [Fact]
+    public async Task AdvancedSearch_FoundIndex_WorksInElectronApp()
+    {
+        // Find all buttons first
+        var allButtons = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            ControlType = "Button",
+        });
+
+        if (allButtons.Success && allButtons.Items?.Length >= 2)
+        {
+            // Find buttons starting from 2nd specifically
+            // FoundIndex=2 returns up to 2 elements starting from the 2nd match
+            var secondResult = await _automationService.FindElementsAsync(new ElementQuery
+            {
+                WindowHandle = _windowHandle,
+                ControlType = "Button",
+                FoundIndex = 2,
+            });
+
+            Assert.True(secondResult.Success);
+            Assert.NotNull(secondResult.Items);
+            Assert.True(secondResult.Items!.Length >= 1, "Should find at least one button starting from 2nd");
+            // The first result should be the 2nd button (not the first)
+            Assert.NotEqual(allButtons.Items![0].Id, secondResult.Items![0].Id);
+        }
+    }
+
+    /// <summary>
+    /// Tests NameContains in Electron apps.
+    /// </summary>
+    [Fact]
+    public async Task AdvancedSearch_NameContains_WorksInElectronApp()
+    {
+        // Search for elements containing "Input" in their name
+        var result = await _automationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = _windowHandle,
+            NameContains = "Input",
+        });
+
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.True(result.Items!.Length >= 1, "Should find at least one element with 'Input' in name");
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    private static bool ContainsControlType(UIElementCompact[]? elements, string controlType)
+    {
+        if (elements == null)
+        {
+            return false;
+        }
+
+        foreach (var element in elements)
+        {
+            if (string.Equals(element.Type, controlType, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsControlTypeInTree(UIElementCompactTree[]? elements, string controlType)
+    {
+        if (elements == null)
+        {
+            return false;
+        }
+
+        foreach (var element in elements)
+        {
+            if (string.Equals(element.Type, controlType, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (ContainsControlTypeInTree(element.Children, controlType))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    #endregion
+}

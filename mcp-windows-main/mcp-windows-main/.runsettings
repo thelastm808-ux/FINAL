@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Test Execution Configuration for .NET unit tests.
+  
+  LLM integration tests use pytest-skill-engineering and are not part of the dotnet test
+  workflow. Run them separately using:
+    cd tests/Sbroenne.WindowsMcp.LLM.Tests && uv run pytest -v
+  
+  This file is auto-discovered by dotnet test when named .runsettings in solution root.
+  Simply run: dotnet test
+-->
+<RunSettings>
+  <RunConfiguration>
+    <!-- Default parallelization for unit tests -->
+    <MaxCpuCount>0</MaxCpuCount>
+  </RunConfiguration>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <!-- Exclude test assemblies, generated code, and third-party interop from coverage math. -->
+          <Exclude>[Sbroenne.WindowsMcp.Tests]*,[Interop.UIAutomationClient]*</Exclude>
+          <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
+          <SkipAutoProps>true</SkipAutoProps>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

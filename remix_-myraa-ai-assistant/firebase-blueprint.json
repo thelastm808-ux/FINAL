@@ -1,0 +1,229 @@
+{
+  "entities": {
+    "UserPreference": {
+      "title": "User Preference Settings",
+      "description": "Custom companion layout preferences, themes, and configuration flags.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "User account ID matching Firebase Auth UID"
+        },
+        "themeColor": {
+          "type": "string",
+          "description": "Selected visual theme atmosphere (violet, crimson, celestial, gold, rose, charcoal)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["userId", "themeColor", "updatedAt"]
+    },
+    "WorkspaceItem": {
+      "title": "Workspace Saved Item",
+      "description": "Reference pointers to frequently-accessed Google Sheets or Google Docs.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique record identifier"
+        },
+        "userId": {
+          "type": "string",
+          "description": "User account ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "The custom name of the Google Doc or Google Sheet"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["doc", "sheet"],
+          "description": "Type of workspace document"
+        },
+        "fileId": {
+          "type": "string",
+          "description": "Google Drive physical file ID"
+        },
+        "url": {
+          "type": "string",
+          "description": "Full document or spreadsheet URL link"
+        },
+        "addedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Addition timestamp"
+        }
+      },
+      "required": ["id", "userId", "name", "type", "fileId", "url", "addedAt"]
+    },
+    "WorkspaceLog": {
+      "title": "Workspace Interaction Log",
+      "description": "Durable audit log tracking all edits, emails sent, or documents read by Myraa on Google Workspace.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique log record ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "User account ID"
+        },
+        "actionType": {
+          "type": "string",
+          "description": "The exact action performed, e.g. 'Gmail Draft Sent', 'Google Doc Created', 'Row Appended'"
+        },
+        "details": {
+          "type": "string",
+          "description": "Textual context summary detailing the action payload"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Audit execution timestamp"
+        }
+      },
+      "required": ["id", "userId", "actionType", "details", "timestamp"]
+    },
+    "ConversationMessage": {
+      "title": "Conversation Message",
+      "description": "Raw chat messages stored permanently for the user, recording conversations with Myraa.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "conversationId": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "assistant", "model"] },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "messageOrder": { "type": "integer" }
+      },
+      "required": ["id", "userId", "conversationId", "sessionId", "role", "content", "timestamp", "date", "time", "messageOrder"]
+    },
+    "ConversationSummary": {
+      "title": "Conversation Summary",
+      "description": "Summaries of conversations highlighting key topics, decisions, tasks, facts, and milestones.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "conversationId": { "type": "string" },
+        "summary": { "type": "string" },
+        "topics": { "type": "array" },
+        "decisions": { "type": "array" },
+        "tasks": { "type": "array" },
+        "preferences": { "type": "array" },
+        "facts": { "type": "array" },
+        "questions": { "type": "array" },
+        "goals": { "type": "array" },
+        "followUps": { "type": "array" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "conversationId", "summary", "timestamp", "createdAt"]
+    },
+    "LongTermMemory": {
+      "title": "Long Term User Memory",
+      "description": "Refined factual/behavioral recollections about the user extracted by Myraa's cognitive engine.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "category": { "type": "string", "enum": ["identity", "preference", "goal", "project", "relationship", "emotional", "behavior"] },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "category", "text", "createdAt", "updatedAt"]
+    },
+    "Project": {
+      "title": "Project Definition",
+      "description": "A structured project that the user has shared details about.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "name", "description", "status", "createdAt", "updatedAt"]
+    },
+    "Task": {
+      "title": "Task Definition",
+      "description": "Tasks created during conversations or explicit requests.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "title", "description", "status", "createdAt", "updatedAt"]
+    },
+    "Reminder": {
+      "title": "Reminder Definition",
+      "description": "Reminders set by the user during discussions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "text": { "type": "string" },
+        "datetime": { "type": "string", "format": "date-time" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "text", "datetime", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserPreference",
+      "description": "Root document containing individual settings and companion styles."
+    },
+    "/users/{userId}/workspace_items/{itemId}": {
+      "schema": "WorkspaceItem",
+      "description": "Favorite Google Drive Sheets and Docs that are managed by the user."
+    },
+    "/users/{userId}/workspace_logs/{logId}": {
+      "schema": "WorkspaceLog",
+      "description": "Audit trails for Sheets, Doc edits, and emails sent on behalf of the user."
+    },
+    "/users/{userId}/conversations/{conversationId}/messages/{messageId}": {
+      "schema": "ConversationMessage",
+      "description": "Raw chat messages stored permanently for the user, grouped by conversation ID."
+    },
+    "/users/{userId}/summaries/{summaryId}": {
+      "schema": "ConversationSummary",
+      "description": "Aggregated conversation summaries generated at periodic intervals."
+    },
+    "/users/{userId}/memories/{memoryId}": {
+      "schema": "LongTermMemory",
+      "description": "Durable extracted user memories across multiple categories."
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Structured project files managed inside Myraa memory core."
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Action items or checklist tasks assigned during chats."
+    },
+    "/users/{userId}/reminders/{reminderId}": {
+      "schema": "Reminder",
+      "description": "Set calendar/time-sensitive reminders."
+    }
+  }
+}

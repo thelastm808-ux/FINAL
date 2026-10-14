@@ -1,0 +1,877 @@
+======================================================================
+WINDOWS KEYBOARD SHORTCUTS — FULL REFERENCE
+Source: Microsoft Support — "Keyboard shortcuts in Windows"
+(extracted only from the uploaded HTML files)
+======================================================================
+
+
+######################################################################
+PART 1 — ALL SHORTCUTS IN LIST ORDER (as they appear in the source)
+######################################################################
+
+----------------------------------------------------------------------
+WINDOWS 11 SHORTCUTS
+----------------------------------------------------------------------
+1. Copilot key / Copilot key / (when Copilot is not available or disabled) -- Open Microsoft Copilot or Microsoft 365 Copilot.; Open or close Windows search.; If Copilot isn't available, it will open Settings so you can choose what the key does.
+2. Backspace -- Delete characters to the left of the cursor.
+3. Ctrl+A -- Select all text.
+4. Ctrl+B -- Apply the bold format to the selected text.
+5. Ctrl+Backspace -- Delete words to the left of the cursor.
+6. Ctrl+C / Ctrl+Insert -- Copy the selected text.
+7. Ctrl+Del -- Delete words to the right of the cursor.
+8. Ctrl+Down arrow -- Move the cursor forward to the beginning of the next paragraph.
+9. Ctrl+End -- Move the cursor forward to the end of the document.
+10. Ctrl+F -- Find text.
+11. Ctrl+H -- Find and replace text.
+12. Ctrl+Home -- Move the cursor backward to the beginning of the document.
+13. Ctrl+I -- Apply the italic format to the selected text.
+14. Ctrl+Left arrow -- Move the cursor backward to the beginning of the previous word.
+15. Ctrl+Right arrow -- Move the cursor forward to the beginning of the next word.
+16. Ctrl+Shift+V -- Paste as plain text.
+17. Ctrl+U -- Apply the underline format to the selected text.
+18. Ctrl+Up arrow -- Move the cursor backward to the beginning of the previous paragraph.
+19. Ctrl+V / Shift+Insert -- Paste the last item from the clipboard.
+20. Ctrl+X -- Cut the selected text.
+21. Ctrl+Y -- Redo typing that was undone with Ctrl+Z.
+22. Ctrl+Z -- Undo the last typing.
+23. Del or Delete -- Delete characters to the right of the cursor.
+24. Down arrow -- Move the cursor forward to the next line.
+25. End -- Move the cursor forward to the end of the line.
+26. Home -- Move the cursor backward to the beginning of the line.
+27. Left arrow -- Move the cursor backward to the previous character.
+28. Page down or PgDn -- Move the cursor forward by one page.
+29. Page up or PgUp -- Move the cursor backward by one page.
+30. Right arrow -- Move the cursor forward to the next character.
+31. Shift+Ctrl+Down arrow -- Select paragraphs forward from the current cursor position.
+32. Shift+Ctrl+End -- Select text between the current cursor position and the end of the document.
+33. Shift+Ctrl+Home -- Select text between the current cursor position and the beginning of the document.
+34. Shift+Ctrl+Left -- Select words backward from the current cursor position.
+35. Shift+Ctrl+Right -- Select words forward from the current cursor position.
+36. Shift+Ctrl+Up -- Select paragraphs backward the current cursor position.
+37. Shift+Down arrow -- Select lines forward from the current cursor position.
+38. Shift+End -- Select text from the current cursor position to the end of the current line.
+39. Shift+Home -- Select text from the current cursor position to the beginning of the current line.
+40. Shift+Left arrow -- Select characters backward from the current cursor position.
+41. Shift+Page Down -- Select one page of text forward from the current cursor position.
+42. Shift+Page Up -- Select one page of text backward from the current cursor position.
+43. Shift+Right arrow -- Select characters forward from the current cursor position.
+44. Shift+Up arrow -- Select lines backward from the current cursor position.
+45. Tab -- Indent the cursor one tab stop.
+46. Up arrow -- Move the cursor backward to the previous line.
+47. Alt+A -- Set focus to the first icon in the Suggested actions menu.
+48. Alt+Esc -- Cycle through windows in the order in which they were opened.
+49. Alt+F4 -- Close the active window. If no windows are open, prompt to shutdown.
+50. Alt+F8 -- Show your password on the sign-in screen.
+51. Alt+Left arrow -- Go back.
+52. Alt+Page Down -- Move down one screen.
+53. Alt+Page Up -- Move up one screen.
+54. Alt+PrtScn -- Capture a screenshot of the active window and copy it to the clipboard.
+55. Alt+Right arrow -- Go forward.
+56. Alt+Shift+arrow keys -- When a group or tile is in focus on the Start menu, move it in the specified direction.
+57. Alt+Ctrl+Insert -- Switch focus back to the host machine from Windows Sandbox.
+58. Alt+Spacebar -- Open the context menu for the active window.
+59. Alt+Tab -- Switch between open windows. To cycle through multiple windows, continue to hold the Alt key and press Tab multiple times.
+60. Alt+underlined letter -- For actions in command or context menus, some windows and apps specify keyboard shortcuts by underlining a character in the action name. Press Alt and then the letter to do that action.
+61. Ctrl+A -- Select all items in a window.
+62. Ctrl+Alt+Del -- Switch to the security screen where you can lock the desktop, switch user, sign out, change a password, or open Task Manager.
+63. Ctrl+Alt+Tab -- View a thumbnail of all open apps. Use the arrow keys to switch between open apps.
+64. Ctrl+Esc -- Open the Start menu.
+65. Ctrl+F4 -- In apps that are full-screen and let you have multiple documents open at the same time, close the active document but not the entire app.
+66. Ctrl+F5 / Ctrl+R -- Refresh the current window.
+67. Ctrl+Shift -- When multiple keyboard layouts are available, switch the keyboard layout.
+68. Ctrl+Shift+arrow keys -- When a tile is in focus on the Start menu, move it into another tile to create a folder.
+69. Ctrl+Shift+Esc -- Open Task Manager.
+70. Ctrl+Spacebar -- Enable or disable the Chinese input method editor (IME). For more information, see Microsoft Simplified Chinese IME and Microsoft Traditional Chinese IME.
+71. Ctrl+Y -- Redo an action that was previously undone with Ctrl+Z.
+72. Ctrl+Z -- Undo the previous action.
+73. Esc or Escape -- Stop or leave the current task, or dismiss a dialog box.
+74. F5 -- Refresh the active window.
+75. F6 -- Cycle through elements in a window or on the desktop.
+76. F10 -- Activate the menu bar in the active window.
+77. PrtScn or Print Screen -- Select a region of the screen to capture a screenshot to the clipboard. You can then open the Snipping Tool to share or markup the image.; Note: You can turn off this default behavior. Select Start > Settings > Accessibility > Keyboard , and set Use the Print Screen button to open screen snipping to Off.; Open the Settings app
+78. Windows key -- Open or close the Start menu.
+79. Windows key+A -- Open the Windows 11 action center.
+80. Windows key+Shift+A -- Set focus to a Windows tip when one is available.; ; When a Windows tip appears, bring focus to the tip. Press the keys again to bring focus to the element on the screen to which the Windows tip is anchored.
+81. Windows key+Alt+B -- Turn high dynamic range (HDR) on or off. For more information, see What is HDR in Windows?.
+82. Windows key+C -- Open Microsoft Copilot or Microsoft 365 Copilot.; ; Tip: To customize what happens when you press the Windows key+C shortcut, go to Settings > Personalization > Text input > Customize Copilot key on keyboard.
+83. Windows key+C / (when Copilot is not available or disabled) -- Open or close Windows search.
+84. Windows key+Alt+D -- Display and hide the date and time on the desktop.
+85. Windows key+Alt+Down arrow -- Snap the active window to the bottom half of the screen.
+86. Windows key+Alt+H -- When voice typing is open, set the focus to the keyboard.
+87. Windows key+Alt+K -- Mute or unmute the microphone in supported apps.
+88. Windows key+Alt+Up arrow -- Snap the active window to the top half of the screen.
+89. Windows key+comma (,) -- Temporarily peek at the desktop.
+90. Windows key+Ctrl+C -- If turned on in settings, enable or disable color filters.; Open the Settings app
+91. Windows key+Ctrl+Enter -- Open Narrator.
+92. Windows key+Ctrl+F -- Search for devices on a network.
+93. Windows key+Ctrl+Q -- Open Quick Assist.
+94. Windows key+Ctrl+Shift+B -- Wake up the device when the screen is blank or black.
+95. Windows key+Ctrl+Spacebar -- Change to a previously selected input option.
+96. Windows key+Ctrl+V -- Open the sound output page of quick settings, which includes settings for the output device, spatial sound, and the volume mixer.
+97. Windows key+D -- Display and hide the desktop.
+98. Windows key+Down arrow -- Minimize the active window.
+99. Windows key+E -- Open File Explorer.
+100. Windows key+Esc -- Close Magnifier.
+101. Windows key+F -- Open Feedback Hub.
+102. Windows key+forward slash ( / ) -- Start input method editor (IME) reconversion.
+103. Windows key+G -- Open the Game Bar. For more information, see Keyboard shortcuts for Game Bar.
+104. Windows key+H -- Open voice dictation.
+105. Windows key+Home -- Minimize or restore all windows except the active window.
+106. Windows key+I -- Open Settings.
+107. Windows key+J -- Open Recall.; (Available on devices that meet the minimum system requirements)
+108. Windows key+K -- Open Cast from Quick Settings to connect to a display. For more information, see Screen mirroring and projecting to your PC or wireless display.
+109. Windows key+L -- Lock the computer.
+110. Windows key+Left arrow -- Snap the window to the left side of the screen.
+111. Windows key+M -- Minimize all windows.
+112. Windows key+Minus (-) -- Zoom out in Magnifier.
+113. Windows key+N -- Open notification center and calendar.
+114. Windows key+O -- Lock the device orientation.
+115. Windows key+P -- Open project settings to choose a presentation display mode.
+116. Windows key+Pause -- Opens the Settings app to the System > About page.
+117. Windows key+Period (.) / Windows key+Semicolon (;) -- Open the emoji panel.
+118. Windows key+Plus (+) -- Zoom in with the Magnifier.
+119. Windows key+PrtScn -- Capture a full screen screenshot and save it to a file in the Screenshots subfolder of the Pictures folder.
+120. Windows key+Q -- Open search.
+121. Windows key+R -- Open the Run dialog box.
+122. Windows key+Right arrow -- Snap the window to the right side of the screen.
+123. Windows key+S -- Open search.
+124. Windows key+Shift+Down arrow -- If a window is snapped or maximized, restore it.
+125. Windows key+Shift+Enter -- If the active window is a Universal Windows Platform (UWP) app, make it full screen.
+126. Windows key+Shift+Left arrow -- Move the active window to the monitor on the left.
+127. Windows key+Shift+M -- Restore minimized windows.
+128. Windows key+Shift+R -- Select a region of the screen to record a video. It then opens the screen recording in the Snipping Tool. By default, this screen recording is automatically saved as an MP4 file in the Screen Recordings subfolder of your Videos folder.
+129. Windows key+Shift+Right arrow -- Move the active window to the monitor on the right.
+130. Windows key+Shift+S -- Select a region of the screen to capture a screenshot to the clipboard. You can then open the Snipping Tool to share or markup the image.
+131. Windows key+Shift+Spacebar -- Switch backward through input languages and keyboard layouts.
+132. Windows key+Shift+Up arrow -- Stretch the desktop window to the top and bottom of the screen.
+133. Windows key+Shift+V -- Cycle through notifications.
+134. Windows key+Spacebar -- Switch forward through input languages and keyboard layouts.
+135. Windows key+Tab -- Open Task View.
+136. Windows key+U -- Open the Settings app to the Accessibility section.
+137. Windows key+Up arrow -- Maximize the active window.
+138. Windows key+V -- Open the clipboard history.; Note: Clipboard history isn't turned on by default. To turn it on, use this keyboard shortcut and then select the prompt to turn on history. You can also turn it on in the Settings app > System > Clipboard , and set Clipboard history to On.; Open the Settings app
+139. Windows key+W -- Open Widgets.
+140. Windows key+X -- Open the Quick Link menu. This shortcut is the same action as right-click on the Start menu.
+141. Windows key+Y -- Switch input between Windows Mixed Reality and your desktop.
+142. Windows key+Z -- Open the snap layouts.
+143. Ctrl+C / Ctrl+Insert -- Copy the selected text.
+144. Ctrl+V / Shift+Insert -- Paste the selected text.
+145. Ctrl+M -- Enter Mark mode.
+146. Alt+selection key -- Begin selection in block mode.
+147. Arrow keys -- Move the cursor in the direction specified.
+148. Page up -- Move the cursor by one page up.
+149. Page down -- Move the cursor by one page down.
+150. Ctrl+Home (Mark mode) -- Move the cursor to the beginning of the buffer.
+151. Ctrl+End (Mark mode) -- Move the cursor to the end of the buffer.
+152. Ctrl+Up arrow -- Move up one line in the output history.
+153. Ctrl+Down arrow -- Move down one line in the output history.
+154. Ctrl+Home (History navigation) -- If the command line is empty, move the viewport to the top of the buffer. Otherwise, delete all the characters to the left of the cursor in the command line.
+155. Ctrl+End (History navigation) -- If the command line is empty, move the viewport to the command line. Otherwise, delete all the characters to the right of the cursor in the command line.
+156. F4 -- Display the items in the active list.
+157. Ctrl+Tab -- Move forward through tabs.
+158. Ctrl+Shift+Tab -- Move back through tabs.
+159. Ctrl+1, 2, 3,... -- Move to that tab number.
+160. Tab -- Move forward through options.
+161. Shift+Tab -- Move back through options.
+162. Alt+underlined letter -- Perform the command (or select the option) that is used with that letter.
+163. Spacebar -- Select or clear the check box if the active option is a check box.
+164. Backspace -- Open a folder one level up if a folder is selected in the Save As or Open dialog box.
+165. Arrow keys -- Select a button if the active option is a group of option buttons.
+166. Alt+D -- Select the address bar.
+167. Alt+Enter -- Display properties for the selected item.
+168. Alt+Left arrow / Backspace -- Navigate to the previous folder.
+169. Alt+mouse drag a file -- When you drop the file, create a shortcut to the original file in that location.
+170. Alt+P -- Show or hide the preview pane.
+171. Alt+Right arrow -- View the next folder.
+172. Alt+Shift+P -- Show or hide the details pane.
+173. Alt+Up arrow -- Move up a level in the folder path.
+174. Ctrl+Arrow key (to move to an item)+Spacebar -- Select multiple individual items.
+175. Ctrl+D / Delete -- Delete the selected item and move it to the Recycle Bin.
+176. Ctrl+E / Ctrl+F -- Select the search box.
+177. Ctrl+L -- Focus on the address bar.
+178. Ctrl+mouse drag a file -- When you drop the file, create a copy in that location.
+179. Ctrl+mouse scroll wheel -- Change the size and appearance of file and folder icons.
+180. Ctrl+N -- Open a new window.
+181. Ctrl+Number (1-9) -- Move to that tab number.
+182. Ctrl+Plus (+) -- Resize all columns to fit text.; Note: This shortcut requires using a numeric keypad.
+183. Ctrl+Shift+E -- Expands all folders from the tree in the navigation pane.
+184. Ctrl+Shift+N -- Create a new folder.
+185. Ctrl+Shift+Number (1-9) -- Change the view style. For example, 2 is Large icons and 6 is Details.
+186. Ctrl+Shift+Tab -- Move to the previous tab.
+187. Ctrl+T -- Open a new tab and switch to it.
+188. Ctrl+W -- Closes the active tab. Closes the window if there's only one tab open.
+189. Ctrl+Tab -- Move to the next tab.
+190. End -- Scroll to the bottom of the active window.
+191. F2 -- Rename the selected item.
+192. F3 -- Search for a file or folder.
+193. F4 -- Select the address bar to change the current path.
+194. F5 -- Refresh the window.
+195. F6 -- Cycle through elements in the window.
+196. F11 -- Maximize or minimize the active window.
+197. Home -- Scroll to the top of the active window.
+198. Left arrow -- Collapse the current selection (if it's expanded), or select the folder that the folder was in.
+199. Right arrow -- Display the current selection (if it's collapsed), or select the first subfolder.
+200. Shift+Arrow keys -- Select multiple items.
+201. Shift+Delete -- Permanently delete the selected item without moving it to the Recycle Bin.
+202. Shift+F10 -- Display the context menu for the selected item.
+203. Shift+mouse drag a file -- When you drop the file, move it to that location.
+204. Shift+mouse right-click -- Display the Show more options context menu for the selected item.
+205. Windows key+E -- Open File Explorer.
+206. Windows key+Tab -- Open Task view.
+207. Windows key+Ctrl+D -- Create another desktop.
+208. Windows key+Ctrl+Right arrow -- Switch between other desktops you've created on the right.
+209. Windows key+Ctrl+Left arrow -- Switch between other desktops you've created on the left.
+210. Windows key+Ctrl+F4 -- Close the desktop you're using.
+211. Alt+Shift+Arrow -- When an app icon is in focus, move it's position in the direction of the arrow.
+212. Ctrl+select a grouped app icon on the taskbar -- When multiple windows for the same app are grouped on the taskbar, press Ctrl as you select the taskbar icon to shift focus through the windows in the app group.
+213. Ctrl+Shift+select an app icon on the taskbar -- Open the app as an administrator.
+214. Shift+right-click an app icon on the taskbar -- Show the window menu for the app.
+215. Shift+right-click a grouped taskbar button -- Show the window menu for the group.
+216. Shift+select an app icon on the taskbar -- Open another instance of the app.
+217. Windows key+Alt+Enter (on taskbar item focus) -- Open taskbar settings.
+218. Windows key+Alt+number (0-9) -- Open the jump list for the app pinned to the taskbar in the position indicated by the number.
+219. Windows key+B -- Set the focus to the first icon in the notification area of the taskbar.
+220. Windows key+Ctrl+number (0-9) -- Switch to the last active window of the app pinned to the taskbar in the position indicated by the number.
+221. Windows key+Ctrl+Shift+number (0-9) -- Open as an administrator a new instance of the app located at the given position on the taskbar.
+222. Windows key+number (0-9) -- Open the app pinned to the taskbar in the position indicated by the number. If the app is already running, switch to that app.
+223. Windows key+Shift+Number (0-9) -- Start a new instance of the app pinned to the taskbar in the position indicated by the number.
+224. Windows key+T -- Cycle through apps in the taskbar. When connected to multiple monitors, continued use will cycle through apps on all available displays.
+225. Windows key+Shift+T -- Move to the previous app in the taskbar. When connected to multiple monitors, continued use will cycle through apps on all available displays.
+226. Arrow keys -- Move focus through the currently selected region.; Scroll the page.
+227. Backspace -- Navigate backwards.
+228. Enter / Spacebar -- Select the current item in focus.
+229. Shift+Tab -- Cycle backward through regions.
+230. Tab -- Cycle forward through regions.
+231. Windows key+I -- Open the Settings app.
+
+----------------------------------------------------------------------
+WINDOWS 10 SHORTCUTS
+----------------------------------------------------------------------
+232. Ctrl+X -- Cut the selected item.
+233. Ctrl+C (or Ctrl+Insert) -- Copy the selected item.
+234. Ctrl+V (or Shift+Insert) -- Paste the selected item.
+235. Ctrl+Z -- Undo an action.
+236. Alt+Tab -- Switch between open apps.
+237. Alt+F4 -- Close the active item, or exit the active app.
+238. Windows key+L -- Lock your PC.
+239. Windows key+D -- Display and hide the desktop.
+240. F2 -- Rename the selected item.
+241. F3 -- Search for a file or folder in File Explorer.
+242. F4 -- Display the address bar list in File Explorer.
+243. F5 -- Refresh the active window.
+244. F6 -- Cycle through screen elements in a window or on the desktop.
+245. F10 -- Activate the Menu bar in the active app.
+246. Alt+F8 -- Show your password on the sign-in screen.
+247. Alt+Esc -- Cycle through items in the order in which they were opened.
+248. Alt+underlined letter -- Perform the command for that letter.
+249. Alt+Enter -- Display properties for the selected item.
+250. Alt+Spacebar -- Open the shortcut menu for the active window.
+251. Alt+Left arrow -- Go back.
+252. Alt+Right arrow -- Go forward.
+253. Alt+Page Up -- Move up one screen.
+254. Alt+Page Down -- Move down one screen.
+255. Ctrl+F4 -- Close the active document (in apps that are full-screen and let you have multiple documents open at the same time).
+256. Ctrl+A -- Select all items in a document or window.
+257. Ctrl+D (or Delete) -- Delete the selected item and move it to the Recycle Bin.
+258. Ctrl+R (or F5) -- Refresh the active window.
+259. Ctrl+Y -- Redo an action.
+260. Ctrl+Right arrow -- Move the cursor to the beginning of the next word.
+261. Ctrl+Left arrow -- Move the cursor to the beginning of the previous word.
+262. Ctrl+Down arrow -- Move the cursor to the beginning of the next paragraph.
+263. Ctrl+Up arrow -- Move the cursor to the beginning of the previous paragraph.
+264. Ctrl+Alt+Tab -- Use the arrow keys to switch between all open apps.
+265. Alt+Shift+arrow keys -- When a group or tile is in focus on the Start menu, move it in the direction specified.
+266. Ctrl+Shift+arrow keys -- When a tile is in focus on the Start menu, move it into another tile to create a folder.
+267. Ctrl+arrow keys -- Resize the Start menu when it's open.
+268. Ctrl+arrow key (to move to an item)+Spacebar -- Select multiple individual items in a window or on the desktop.
+269. Ctrl+Shift with an arrow key -- Select a block of text.
+270. Ctrl+Esc -- Open Start.
+271. Ctrl+Shift+Esc -- Open Task Manager.
+272. Ctrl+Shift -- Switch the keyboard layout when multiple keyboard layouts are available.
+273. Ctrl+Spacebar -- Turn the Chinese input method editor (IME) on or off.
+274. Shift+F10 -- Display the shortcut menu for the selected item.
+275. Shift with any arrow key -- Select more than one item in a window or on the desktop, or select text in a document.
+276. Shift+Delete -- Delete the selected item without moving it to the Recycle Bin first.
+277. Right arrow -- Open the next menu to the right, or open a submenu.
+278. Left arrow -- Open the next menu to the left, or close a submenu.
+279. Esc -- Stop or leave the current task.
+280. PrtScn -- Take a screenshot of your whole screen and copy it to the clipboard.; Note: You can change this shortcut so it also opens screen snipping, which lets you edit your screenshot. Select Start ** > Settings > Ease of Access > Keyboard, and turn on the toggle under Print Screen shortcut.; Use PrtScn key to open screen snipping
+281. Windows key -- Open or close Start.
+282. Windows key+A -- Open Action center.
+283. Windows key+B -- Set focus in the notification area.
+284. Windows key+C -- Open Cortana in listening mode.; ; Notes:; This shortcut is turned off by default. To turn it on, select Start > Settings > Cortana, and turn on the toggle under Let Cortana listen for my commands when I press the Windows key+C.Cortana is available only in certain countries/regions, and some Cortana features might not be available everywhere. If Cortana isn't available or is turned off, you can still use search.
+285. Windows key+Shift+C -- Open the charms menu.
+286. Windows key+D -- Display and hide the desktop.
+287. Windows key+E -- Open File Explorer.
+288. Windows key+F -- Open Feedback Hub and take a screenshot.
+289. Windows key+G -- Open Game bar when a game is open.
+290. Windows key+Alt+B -- Turn HDR on or off.; Note: Applies to the Game Bar app version 5.721.7292.0 or newer. To update your Game Bar, go to the Microsoft Store app and check for updates.
+291. Windows key+H -- Start dictation.
+292. Windows key+I -- Open Settings.
+293. Windows key+Shift+A -- Set focus to a Windows tip when one is available.; ; When a Windows tip appears, bring focus to the Tip. Pressing the keyboard shortcuts again to bring focus to the element on the screen to which the Windows tip is anchored.
+294. Windows key+K -- Open the Connect quick action.
+295. Windows key+L -- Lock your PC or switch accounts.
+296. Windows key+M -- Minimize all windows.
+297. Windows key+O -- Lock device orientation.
+298. Windows key+P -- Choose a presentation display mode.
+299. Windows key+Ctrl+Q -- Open Quick Assist.
+300. Windows key+R -- Open the Run dialog box.
+301. Windows key+S -- Open search.
+302. Windows key+Shift+S -- Take a screenshot of part of your screen.
+303. Windows key+T -- Cycle through apps on the taskbar.
+304. Windows key+U -- Open Ease of Access Center.
+305. Windows key+V -- Open the clipboard.; ; Note; To activate this shortcut, select Start > Settings > System > Clipboard, and turn on the toggle under Clipboard history.
+306. Windows key+Shift+V -- Cycle through notifications.
+307. Windows key+X -- Open the Quick Link menu.
+308. Windows key+Y -- Switch input between Windows Mixed Reality and your desktop.
+309. Windows key+Z -- Show the commands available in an app in full-screen mode.
+310. Windows key+period (.) or semicolon (;) -- Open emoji panel.
+311. Windows key+comma (,) -- Temporarily peek at the desktop.
+312. Windows key+Pause -- Display the System Properties dialog box.
+313. Windows key+Ctrl+F -- Search for PCs (if you're on a network).
+314. Windows key+Shift+M -- Restore minimized windows on the desktop.
+315. Windows key+number -- Open the desktop and start the app pinned to the taskbar in the position indicated by the number. If the app is already running, switch to that app.
+316. Windows key+Shift+number -- Open the desktop and start a new instance of the app pinned to the taskbar in the position indicated by the number.
+317. Windows key+Ctrl+number -- Open the desktop and switch to the last active window of the app pinned to the taskbar in the position indicated by the number.
+318. Windows key+Alt+number -- Open the desktop and open the Jump List for the app pinned to the taskbar in the position indicated by the number.
+319. Windows key+Ctrl+Shift+number -- Open the desktop and open a new instance of the app located at the given position on the taskbar as an administrator.
+320. Windows key+Tab -- Open Task view.
+321. Windows key+Up arrow -- Maximize the window.
+322. Windows key+Down arrow -- Remove current app from screen or minimize the desktop window.
+323. Windows key+Left arrow -- Maximize the app or desktop window to the left side of the screen.
+324. Windows key+Right arrow -- Maximize the app or desktop window to the right side of the screen.
+325. Windows key+Home -- Minimize all except the active desktop window (restores all windows on second stroke).
+326. Windows key+Shift+Up arrow -- Stretch the desktop window to the top and bottom of the screen.
+327. Windows key+Shift+Down arrow -- Restore or minimize active desktop windows vertically, maintaining width.
+328. Windows key+Shift+Left arrow or Right arrow -- Move an app or window in the desktop from one monitor to another.
+329. Windows key+Spacebar -- Switch input language and keyboard layout.
+330. Windows key+Ctrl+Spacebar -- Change to a previously selected input.
+331. Windows key+Ctrl+Enter -- Turn on Narrator.
+332. Windows key+Plus (+) -- Open Magnifier.
+333. Windows key+forward slash ( / ) -- Begin IME reconversion.
+334. Windows key+Ctrl+V -- Open shoulder taps.
+335. Windows key+Ctrl+Shift+B -- Wake PC from blank or black screen.
+336. Windows key+Alt+Enter (on taskbar item focus) -- Open taskbar settings.
+337. Ctrl+C (or Ctrl+Insert) -- Copy the selected text.
+338. Ctrl+V (or Shift+Insert) -- Paste the selected text.
+339. Ctrl+M -- Enter Mark mode.
+340. Alt+selection key -- Begin selection in block mode.
+341. Arrow keys -- Move the cursor in the direction specified.
+342. Page up -- Move the cursor by one page up.
+343. Page down -- Move the cursor by one page down.
+344. Ctrl+Home (Mark mode) -- Move the cursor to the beginning of the buffer.
+345. Ctrl+End (Mark mode) -- Move the cursor to the end of the buffer.
+346. Ctrl+Up arrow -- Move up one line in the output history.
+347. Ctrl+Down arrow -- Move down one line in the output history.
+348. Ctrl+Home (History navigation) -- If the command line is empty, move the viewport to the top of the buffer. Otherwise, delete all the characters to the left of the cursor in the command line.
+349. Ctrl+End (History navigation) -- If the command line is empty, move the viewport to the command line. Otherwise, delete all the characters to the right of the cursor in the command line.
+350. F4 -- Display the items in the active list.
+351. Ctrl+Tab -- Move forward through tabs.
+352. Ctrl+Shift+Tab -- Move back through tabs.
+353. Ctrl+number (number 1–9) -- Move to nth tab.
+354. Tab -- Move forward through options.
+355. Shift+Tab -- Move back through options.
+356. Alt+underlined letter -- Perform the command (or select the option) that is used with that letter.
+357. Spacebar -- Select or clear the check box if the active option is a check box.
+358. Backspace -- Open a folder one level up if a folder is selected in the Save As or Open dialog box.
+359. Arrow keys -- Select a button if the active option is a group of option buttons.
+360. Alt+D -- Select the address bar.
+361. Ctrl+E -- Select the search box.
+362. Ctrl+F -- Select the search box.
+363. Ctrl+N -- Open a new window.
+364. Ctrl+W -- Close the active window.
+365. Ctrl+mouse scroll wheel -- Change the size and appearance of file and folder icons.
+366. Ctrl+Shift+E -- Display all folders above the selected folder.
+367. Ctrl+Shift+N -- Create a new folder.
+368. Num Lock+asterisk (*) -- Display all subfolders under the selected folder.
+369. Num Lock+plus (+) -- Display the contents of the selected folder.
+370. Num Lock+minus (-) -- Collapse the selected folder.
+371. Alt+P -- Display the preview panel.
+372. Alt+Enter -- Open the Properties dialog box for the selected item.
+373. Alt+Right arrow -- View the next folder.
+374. Alt+Up arrow -- View the folder that the folder was in.
+375. Alt+Left arrow -- View the previous folder.
+376. Backspace -- View the previous folder.
+377. Right arrow -- Display the current selection (if it's collapsed), or select the first subfolder.
+378. Left arrow -- Collapse the current selection (if it's expanded), or select the folder that the folder was in.
+379. End -- Display the bottom of the active window.
+380. Home -- Display the top of the active window.
+381. F11 -- Maximize or minimize the active window.
+382. Windows key+Tab -- Open Task view.
+383. Windows key+Ctrl+D -- Add a virtual desktop.
+384. Windows key+Ctrl+Right arrow -- Switch between virtual desktops you've created on the right.
+385. Windows key+Ctrl+Left arrow -- Switch between virtual desktops you've created on the left.
+386. Windows key+Ctrl+F4 -- Close the virtual desktop you're using.
+387. Shift+click a taskbar button -- Open an app or quickly open another instance of an app.
+388. Ctrl+Shift+click a taskbar button -- Open an app as an administrator.
+389. Shift+right-click a taskbar button -- Show the window menu for the app.
+390. Shift+right-click a grouped taskbar button -- Show the window menu for the group.
+391. Ctrl+click a grouped taskbar button -- Cycle through the windows of the group.
+392. Windows key+I -- Open settings.
+393. Backspace -- Go back to the settings home page.
+394. Type on any page with search box -- Search settings.
+
+
+######################################################################
+PART 2 — ALL SHORTCUTS TOPIC WISE (grouped by category)
+######################################################################
+
+======================================================================
+WINDOWS 11
+======================================================================
+
+>> Windows Copilot keyboard shortcuts (1 shortcuts)
+----------------------------------------------------------------------
+  Copilot key / Copilot key / (when Copilot is not available or disabled) -- Open Microsoft Copilot or Microsoft 365 Copilot.; Open or close Windows search.; If Copilot isn't available, it will open Settings so you can choose what the key does.
+
+>> Text editing keyboard shortcuts (45 shortcuts)
+----------------------------------------------------------------------
+  Backspace -- Delete characters to the left of the cursor.
+  Ctrl+A -- Select all text.
+  Ctrl+B -- Apply the bold format to the selected text.
+  Ctrl+Backspace -- Delete words to the left of the cursor.
+  Ctrl+C / Ctrl+Insert -- Copy the selected text.
+  Ctrl+Del -- Delete words to the right of the cursor.
+  Ctrl+Down arrow -- Move the cursor forward to the beginning of the next paragraph.
+  Ctrl+End -- Move the cursor forward to the end of the document.
+  Ctrl+F -- Find text.
+  Ctrl+H -- Find and replace text.
+  Ctrl+Home -- Move the cursor backward to the beginning of the document.
+  Ctrl+I -- Apply the italic format to the selected text.
+  Ctrl+Left arrow -- Move the cursor backward to the beginning of the previous word.
+  Ctrl+Right arrow -- Move the cursor forward to the beginning of the next word.
+  Ctrl+Shift+V -- Paste as plain text.
+  Ctrl+U -- Apply the underline format to the selected text.
+  Ctrl+Up arrow -- Move the cursor backward to the beginning of the previous paragraph.
+  Ctrl+V / Shift+Insert -- Paste the last item from the clipboard.
+  Ctrl+X -- Cut the selected text.
+  Ctrl+Y -- Redo typing that was undone with Ctrl+Z.
+  Ctrl+Z -- Undo the last typing.
+  Del or Delete -- Delete characters to the right of the cursor.
+  Down arrow -- Move the cursor forward to the next line.
+  End -- Move the cursor forward to the end of the line.
+  Home -- Move the cursor backward to the beginning of the line.
+  Left arrow -- Move the cursor backward to the previous character.
+  Page down or PgDn -- Move the cursor forward by one page.
+  Page up or PgUp -- Move the cursor backward by one page.
+  Right arrow -- Move the cursor forward to the next character.
+  Shift+Ctrl+Down arrow -- Select paragraphs forward from the current cursor position.
+  Shift+Ctrl+End -- Select text between the current cursor position and the end of the document.
+  Shift+Ctrl+Home -- Select text between the current cursor position and the beginning of the document.
+  Shift+Ctrl+Left -- Select words backward from the current cursor position.
+  Shift+Ctrl+Right -- Select words forward from the current cursor position.
+  Shift+Ctrl+Up -- Select paragraphs backward the current cursor position.
+  Shift+Down arrow -- Select lines forward from the current cursor position.
+  Shift+End -- Select text from the current cursor position to the end of the current line.
+  Shift+Home -- Select text from the current cursor position to the beginning of the current line.
+  Shift+Left arrow -- Select characters backward from the current cursor position.
+  Shift+Page Down -- Select one page of text forward from the current cursor position.
+  Shift+Page Up -- Select one page of text backward from the current cursor position.
+  Shift+Right arrow -- Select characters forward from the current cursor position.
+  Shift+Up arrow -- Select lines backward from the current cursor position.
+  Tab -- Indent the cursor one tab stop.
+  Up arrow -- Move the cursor backward to the previous line.
+
+>> Desktop and other general Windows keyboard shortcuts (31 shortcuts)
+----------------------------------------------------------------------
+  Alt+A -- Set focus to the first icon in the Suggested actions menu.
+  Alt+Esc -- Cycle through windows in the order in which they were opened.
+  Alt+F4 -- Close the active window. If no windows are open, prompt to shutdown.
+  Alt+F8 -- Show your password on the sign-in screen.
+  Alt+Left arrow -- Go back.
+  Alt+Page Down -- Move down one screen.
+  Alt+Page Up -- Move up one screen.
+  Alt+PrtScn -- Capture a screenshot of the active window and copy it to the clipboard.
+  Alt+Right arrow -- Go forward.
+  Alt+Shift+arrow keys -- When a group or tile is in focus on the Start menu, move it in the specified direction.
+  Alt+Ctrl+Insert -- Switch focus back to the host machine from Windows Sandbox.
+  Alt+Spacebar -- Open the context menu for the active window.
+  Alt+Tab -- Switch between open windows. To cycle through multiple windows, continue to hold the Alt key and press Tab multiple times.
+  Alt+underlined letter -- For actions in command or context menus, some windows and apps specify keyboard shortcuts by underlining a character in the action name. Press Alt and then the letter to do that action.
+  Ctrl+A -- Select all items in a window.
+  Ctrl+Alt+Del -- Switch to the security screen where you can lock the desktop, switch user, sign out, change a password, or open Task Manager.
+  Ctrl+Alt+Tab -- View a thumbnail of all open apps. Use the arrow keys to switch between open apps.
+  Ctrl+Esc -- Open the Start menu.
+  Ctrl+F4 -- In apps that are full-screen and let you have multiple documents open at the same time, close the active document but not the entire app.
+  Ctrl+F5 / Ctrl+R -- Refresh the current window.
+  Ctrl+Shift -- When multiple keyboard layouts are available, switch the keyboard layout.
+  Ctrl+Shift+arrow keys -- When a tile is in focus on the Start menu, move it into another tile to create a folder.
+  Ctrl+Shift+Esc -- Open Task Manager.
+  Ctrl+Spacebar -- Enable or disable the Chinese input method editor (IME). For more information, see Microsoft Simplified Chinese IME and Microsoft Traditional Chinese IME.
+  Ctrl+Y -- Redo an action that was previously undone with Ctrl+Z.
+  Ctrl+Z -- Undo the previous action.
+  Esc or Escape -- Stop or leave the current task, or dismiss a dialog box.
+  F5 -- Refresh the active window.
+  F6 -- Cycle through elements in a window or on the desktop.
+  F10 -- Activate the menu bar in the active window.
+  PrtScn or Print Screen -- Select a region of the screen to capture a screenshot to the clipboard. You can then open the Snipping Tool to share or markup the image.; Note: You can turn off this default behavior. Select Start > Settings > Accessibility > Keyboard , and set Use the Print Screen button to open screen snipping to Off.; Open the Settings app
+
+>> Windows key keyboard shortcuts (65 shortcuts)
+----------------------------------------------------------------------
+  Windows key -- Open or close the Start menu.
+  Windows key+A -- Open the Windows 11 action center.
+  Windows key+Shift+A -- Set focus to a Windows tip when one is available.; ; When a Windows tip appears, bring focus to the tip. Press the keys again to bring focus to the element on the screen to which the Windows tip is anchored.
+  Windows key+Alt+B -- Turn high dynamic range (HDR) on or off. For more information, see What is HDR in Windows?.
+  Windows key+C -- Open Microsoft Copilot or Microsoft 365 Copilot.; ; Tip: To customize what happens when you press the Windows key+C shortcut, go to Settings > Personalization > Text input > Customize Copilot key on keyboard.
+  Windows key+C / (when Copilot is not available or disabled) -- Open or close Windows search.
+  Windows key+Alt+D -- Display and hide the date and time on the desktop.
+  Windows key+Alt+Down arrow -- Snap the active window to the bottom half of the screen.
+  Windows key+Alt+H -- When voice typing is open, set the focus to the keyboard.
+  Windows key+Alt+K -- Mute or unmute the microphone in supported apps.
+  Windows key+Alt+Up arrow -- Snap the active window to the top half of the screen.
+  Windows key+comma (,) -- Temporarily peek at the desktop.
+  Windows key+Ctrl+C -- If turned on in settings, enable or disable color filters.; Open the Settings app
+  Windows key+Ctrl+Enter -- Open Narrator.
+  Windows key+Ctrl+F -- Search for devices on a network.
+  Windows key+Ctrl+Q -- Open Quick Assist.
+  Windows key+Ctrl+Shift+B -- Wake up the device when the screen is blank or black.
+  Windows key+Ctrl+Spacebar -- Change to a previously selected input option.
+  Windows key+Ctrl+V -- Open the sound output page of quick settings, which includes settings for the output device, spatial sound, and the volume mixer.
+  Windows key+D -- Display and hide the desktop.
+  Windows key+Down arrow -- Minimize the active window.
+  Windows key+E -- Open File Explorer.
+  Windows key+Esc -- Close Magnifier.
+  Windows key+F -- Open Feedback Hub.
+  Windows key+forward slash ( / ) -- Start input method editor (IME) reconversion.
+  Windows key+G -- Open the Game Bar. For more information, see Keyboard shortcuts for Game Bar.
+  Windows key+H -- Open voice dictation.
+  Windows key+Home -- Minimize or restore all windows except the active window.
+  Windows key+I -- Open Settings.
+  Windows key+J -- Open Recall.; (Available on devices that meet the minimum system requirements)
+  Windows key+K -- Open Cast from Quick Settings to connect to a display. For more information, see Screen mirroring and projecting to your PC or wireless display.
+  Windows key+L -- Lock the computer.
+  Windows key+Left arrow -- Snap the window to the left side of the screen.
+  Windows key+M -- Minimize all windows.
+  Windows key+Minus (-) -- Zoom out in Magnifier.
+  Windows key+N -- Open notification center and calendar.
+  Windows key+O -- Lock the device orientation.
+  Windows key+P -- Open project settings to choose a presentation display mode.
+  Windows key+Pause -- Opens the Settings app to the System > About page.
+  Windows key+Period (.) / Windows key+Semicolon (;) -- Open the emoji panel.
+  Windows key+Plus (+) -- Zoom in with the Magnifier.
+  Windows key+PrtScn -- Capture a full screen screenshot and save it to a file in the Screenshots subfolder of the Pictures folder.
+  Windows key+Q -- Open search.
+  Windows key+R -- Open the Run dialog box.
+  Windows key+Right arrow -- Snap the window to the right side of the screen.
+  Windows key+S -- Open search.
+  Windows key+Shift+Down arrow -- If a window is snapped or maximized, restore it.
+  Windows key+Shift+Enter -- If the active window is a Universal Windows Platform (UWP) app, make it full screen.
+  Windows key+Shift+Left arrow -- Move the active window to the monitor on the left.
+  Windows key+Shift+M -- Restore minimized windows.
+  Windows key+Shift+R -- Select a region of the screen to record a video. It then opens the screen recording in the Snipping Tool. By default, this screen recording is automatically saved as an MP4 file in the Screen Recordings subfolder of your Videos folder.
+  Windows key+Shift+Right arrow -- Move the active window to the monitor on the right.
+  Windows key+Shift+S -- Select a region of the screen to capture a screenshot to the clipboard. You can then open the Snipping Tool to share or markup the image.
+  Windows key+Shift+Spacebar -- Switch backward through input languages and keyboard layouts.
+  Windows key+Shift+Up arrow -- Stretch the desktop window to the top and bottom of the screen.
+  Windows key+Shift+V -- Cycle through notifications.
+  Windows key+Spacebar -- Switch forward through input languages and keyboard layouts.
+  Windows key+Tab -- Open Task View.
+  Windows key+U -- Open the Settings app to the Accessibility section.
+  Windows key+Up arrow -- Maximize the active window.
+  Windows key+V -- Open the clipboard history.; Note: Clipboard history isn't turned on by default. To turn it on, use this keyboard shortcut and then select the prompt to turn on history. You can also turn it on in the Settings app > System > Clipboard , and set Clipboard history to On.; Open the Settings app
+  Windows key+W -- Open Widgets.
+  Windows key+X -- Open the Quick Link menu. This shortcut is the same action as right-click on the Start menu.
+  Windows key+Y -- Switch input between Windows Mixed Reality and your desktop.
+  Windows key+Z -- Open the snap layouts.
+
+>> Command prompt keyboard shortcuts (13 shortcuts)
+----------------------------------------------------------------------
+  Ctrl+C / Ctrl+Insert -- Copy the selected text.
+  Ctrl+V / Shift+Insert -- Paste the selected text.
+  Ctrl+M -- Enter Mark mode.
+  Alt+selection key -- Begin selection in block mode.
+  Arrow keys -- Move the cursor in the direction specified.
+  Page up -- Move the cursor by one page up.
+  Page down -- Move the cursor by one page down.
+  Ctrl+Home (Mark mode) -- Move the cursor to the beginning of the buffer.
+  Ctrl+End (Mark mode) -- Move the cursor to the end of the buffer.
+  Ctrl+Up arrow -- Move up one line in the output history.
+  Ctrl+Down arrow -- Move down one line in the output history.
+  Ctrl+Home (History navigation) -- If the command line is empty, move the viewport to the top of the buffer. Otherwise, delete all the characters to the left of the cursor in the command line.
+  Ctrl+End (History navigation) -- If the command line is empty, move the viewport to the command line. Otherwise, delete all the characters to the right of the cursor in the command line.
+
+>> Dialog box keyboard shortcuts (10 shortcuts)
+----------------------------------------------------------------------
+  F4 -- Display the items in the active list.
+  Ctrl+Tab -- Move forward through tabs.
+  Ctrl+Shift+Tab -- Move back through tabs.
+  Ctrl+1, 2, 3,... -- Move to that tab number.
+  Tab -- Move forward through options.
+  Shift+Tab -- Move back through options.
+  Alt+underlined letter -- Perform the command (or select the option) that is used with that letter.
+  Spacebar -- Select or clear the check box if the active option is a check box.
+  Backspace -- Open a folder one level up if a folder is selected in the Save As or Open dialog box.
+  Arrow keys -- Select a button if the active option is a group of option buttons.
+
+>> File Explorer keyboard shortcuts (40 shortcuts)
+----------------------------------------------------------------------
+  Alt+D -- Select the address bar.
+  Alt+Enter -- Display properties for the selected item.
+  Alt+Left arrow / Backspace -- Navigate to the previous folder.
+  Alt+mouse drag a file -- When you drop the file, create a shortcut to the original file in that location.
+  Alt+P -- Show or hide the preview pane.
+  Alt+Right arrow -- View the next folder.
+  Alt+Shift+P -- Show or hide the details pane.
+  Alt+Up arrow -- Move up a level in the folder path.
+  Ctrl+Arrow key (to move to an item)+Spacebar -- Select multiple individual items.
+  Ctrl+D / Delete -- Delete the selected item and move it to the Recycle Bin.
+  Ctrl+E / Ctrl+F -- Select the search box.
+  Ctrl+L -- Focus on the address bar.
+  Ctrl+mouse drag a file -- When you drop the file, create a copy in that location.
+  Ctrl+mouse scroll wheel -- Change the size and appearance of file and folder icons.
+  Ctrl+N -- Open a new window.
+  Ctrl+Number (1-9) -- Move to that tab number.
+  Ctrl+Plus (+) -- Resize all columns to fit text.; Note: This shortcut requires using a numeric keypad.
+  Ctrl+Shift+E -- Expands all folders from the tree in the navigation pane.
+  Ctrl+Shift+N -- Create a new folder.
+  Ctrl+Shift+Number (1-9) -- Change the view style. For example, 2 is Large icons and 6 is Details.
+  Ctrl+Shift+Tab -- Move to the previous tab.
+  Ctrl+T -- Open a new tab and switch to it.
+  Ctrl+W -- Closes the active tab. Closes the window if there's only one tab open.
+  Ctrl+Tab -- Move to the next tab.
+  End -- Scroll to the bottom of the active window.
+  F2 -- Rename the selected item.
+  F3 -- Search for a file or folder.
+  F4 -- Select the address bar to change the current path.
+  F5 -- Refresh the window.
+  F6 -- Cycle through elements in the window.
+  F11 -- Maximize or minimize the active window.
+  Home -- Scroll to the top of the active window.
+  Left arrow -- Collapse the current selection (if it's expanded), or select the folder that the folder was in.
+  Right arrow -- Display the current selection (if it's collapsed), or select the first subfolder.
+  Shift+Arrow keys -- Select multiple items.
+  Shift+Delete -- Permanently delete the selected item without moving it to the Recycle Bin.
+  Shift+F10 -- Display the context menu for the selected item.
+  Shift+mouse drag a file -- When you drop the file, move it to that location.
+  Shift+mouse right-click -- Display the Show more options context menu for the selected item.
+  Windows key+E -- Open File Explorer.
+
+>> Multiple desktops keyboard shortcuts (5 shortcuts)
+----------------------------------------------------------------------
+  Windows key+Tab -- Open Task view.
+  Windows key+Ctrl+D -- Create another desktop.
+  Windows key+Ctrl+Right arrow -- Switch between other desktops you've created on the right.
+  Windows key+Ctrl+Left arrow -- Switch between other desktops you've created on the left.
+  Windows key+Ctrl+F4 -- Close the desktop you're using.
+
+>> Taskbar keyboard shortcuts (15 shortcuts)
+----------------------------------------------------------------------
+  Alt+Shift+Arrow -- When an app icon is in focus, move it's position in the direction of the arrow.
+  Ctrl+select a grouped app icon on the taskbar -- When multiple windows for the same app are grouped on the taskbar, press Ctrl as you select the taskbar icon to shift focus through the windows in the app group.
+  Ctrl+Shift+select an app icon on the taskbar -- Open the app as an administrator.
+  Shift+right-click an app icon on the taskbar -- Show the window menu for the app.
+  Shift+right-click a grouped taskbar button -- Show the window menu for the group.
+  Shift+select an app icon on the taskbar -- Open another instance of the app.
+  Windows key+Alt+Enter (on taskbar item focus) -- Open taskbar settings.
+  Windows key+Alt+number (0-9) -- Open the jump list for the app pinned to the taskbar in the position indicated by the number.
+  Windows key+B -- Set the focus to the first icon in the notification area of the taskbar.
+  Windows key+Ctrl+number (0-9) -- Switch to the last active window of the app pinned to the taskbar in the position indicated by the number.
+  Windows key+Ctrl+Shift+number (0-9) -- Open as an administrator a new instance of the app located at the given position on the taskbar.
+  Windows key+number (0-9) -- Open the app pinned to the taskbar in the position indicated by the number. If the app is already running, switch to that app.
+  Windows key+Shift+Number (0-9) -- Start a new instance of the app pinned to the taskbar in the position indicated by the number.
+  Windows key+T -- Cycle through apps in the taskbar. When connected to multiple monitors, continued use will cycle through apps on all available displays.
+  Windows key+Shift+T -- Move to the previous app in the taskbar. When connected to multiple monitors, continued use will cycle through apps on all available displays.
+
+>> Settings keyboard shortcuts (6 shortcuts)
+----------------------------------------------------------------------
+  Arrow keys -- Move focus through the currently selected region.; Scroll the page.
+  Backspace -- Navigate backwards.
+  Enter / Spacebar -- Select the current item in focus.
+  Shift+Tab -- Cycle backward through regions.
+  Tab -- Cycle forward through regions.
+  Windows key+I -- Open the Settings app.
+
+======================================================================
+WINDOWS 10
+======================================================================
+
+>> Copy, paste, and other general keyboard shortcuts (49 shortcuts)
+----------------------------------------------------------------------
+  Ctrl+X -- Cut the selected item.
+  Ctrl+C (or Ctrl+Insert) -- Copy the selected item.
+  Ctrl+V (or Shift+Insert) -- Paste the selected item.
+  Ctrl+Z -- Undo an action.
+  Alt+Tab -- Switch between open apps.
+  Alt+F4 -- Close the active item, or exit the active app.
+  Windows key+L -- Lock your PC.
+  Windows key+D -- Display and hide the desktop.
+  F2 -- Rename the selected item.
+  F3 -- Search for a file or folder in File Explorer.
+  F4 -- Display the address bar list in File Explorer.
+  F5 -- Refresh the active window.
+  F6 -- Cycle through screen elements in a window or on the desktop.
+  F10 -- Activate the Menu bar in the active app.
+  Alt+F8 -- Show your password on the sign-in screen.
+  Alt+Esc -- Cycle through items in the order in which they were opened.
+  Alt+underlined letter -- Perform the command for that letter.
+  Alt+Enter -- Display properties for the selected item.
+  Alt+Spacebar -- Open the shortcut menu for the active window.
+  Alt+Left arrow -- Go back.
+  Alt+Right arrow -- Go forward.
+  Alt+Page Up -- Move up one screen.
+  Alt+Page Down -- Move down one screen.
+  Ctrl+F4 -- Close the active document (in apps that are full-screen and let you have multiple documents open at the same time).
+  Ctrl+A -- Select all items in a document or window.
+  Ctrl+D (or Delete) -- Delete the selected item and move it to the Recycle Bin.
+  Ctrl+R (or F5) -- Refresh the active window.
+  Ctrl+Y -- Redo an action.
+  Ctrl+Right arrow -- Move the cursor to the beginning of the next word.
+  Ctrl+Left arrow -- Move the cursor to the beginning of the previous word.
+  Ctrl+Down arrow -- Move the cursor to the beginning of the next paragraph.
+  Ctrl+Up arrow -- Move the cursor to the beginning of the previous paragraph.
+  Ctrl+Alt+Tab -- Use the arrow keys to switch between all open apps.
+  Alt+Shift+arrow keys -- When a group or tile is in focus on the Start menu, move it in the direction specified.
+  Ctrl+Shift+arrow keys -- When a tile is in focus on the Start menu, move it into another tile to create a folder.
+  Ctrl+arrow keys -- Resize the Start menu when it's open.
+  Ctrl+arrow key (to move to an item)+Spacebar -- Select multiple individual items in a window or on the desktop.
+  Ctrl+Shift with an arrow key -- Select a block of text.
+  Ctrl+Esc -- Open Start.
+  Ctrl+Shift+Esc -- Open Task Manager.
+  Ctrl+Shift -- Switch the keyboard layout when multiple keyboard layouts are available.
+  Ctrl+Spacebar -- Turn the Chinese input method editor (IME) on or off.
+  Shift+F10 -- Display the shortcut menu for the selected item.
+  Shift with any arrow key -- Select more than one item in a window or on the desktop, or select text in a document.
+  Shift+Delete -- Delete the selected item without moving it to the Recycle Bin first.
+  Right arrow -- Open the next menu to the right, or open a submenu.
+  Left arrow -- Open the next menu to the left, or close a submenu.
+  Esc -- Stop or leave the current task.
+  PrtScn -- Take a screenshot of your whole screen and copy it to the clipboard.; Note: You can change this shortcut so it also opens screen snipping, which lets you edit your screenshot. Select Start ** > Settings > Ease of Access > Keyboard, and turn on the toggle under Print Screen shortcut.; Use PrtScn key to open screen snipping
+
+>> Windows key keyboard shortcuts (56 shortcuts)
+----------------------------------------------------------------------
+  Windows key -- Open or close Start.
+  Windows key+A -- Open Action center.
+  Windows key+B -- Set focus in the notification area.
+  Windows key+C -- Open Cortana in listening mode.; ; Notes:; This shortcut is turned off by default. To turn it on, select Start > Settings > Cortana, and turn on the toggle under Let Cortana listen for my commands when I press the Windows key+C.Cortana is available only in certain countries/regions, and some Cortana features might not be available everywhere. If Cortana isn't available or is turned off, you can still use search.
+  Windows key+Shift+C -- Open the charms menu.
+  Windows key+D -- Display and hide the desktop.
+  Windows key+E -- Open File Explorer.
+  Windows key+F -- Open Feedback Hub and take a screenshot.
+  Windows key+G -- Open Game bar when a game is open.
+  Windows key+Alt+B -- Turn HDR on or off.; Note: Applies to the Game Bar app version 5.721.7292.0 or newer. To update your Game Bar, go to the Microsoft Store app and check for updates.
+  Windows key+H -- Start dictation.
+  Windows key+I -- Open Settings.
+  Windows key+Shift+A -- Set focus to a Windows tip when one is available.; ; When a Windows tip appears, bring focus to the Tip. Pressing the keyboard shortcuts again to bring focus to the element on the screen to which the Windows tip is anchored.
+  Windows key+K -- Open the Connect quick action.
+  Windows key+L -- Lock your PC or switch accounts.
+  Windows key+M -- Minimize all windows.
+  Windows key+O -- Lock device orientation.
+  Windows key+P -- Choose a presentation display mode.
+  Windows key+Ctrl+Q -- Open Quick Assist.
+  Windows key+R -- Open the Run dialog box.
+  Windows key+S -- Open search.
+  Windows key+Shift+S -- Take a screenshot of part of your screen.
+  Windows key+T -- Cycle through apps on the taskbar.
+  Windows key+U -- Open Ease of Access Center.
+  Windows key+V -- Open the clipboard.; ; Note; To activate this shortcut, select Start > Settings > System > Clipboard, and turn on the toggle under Clipboard history.
+  Windows key+Shift+V -- Cycle through notifications.
+  Windows key+X -- Open the Quick Link menu.
+  Windows key+Y -- Switch input between Windows Mixed Reality and your desktop.
+  Windows key+Z -- Show the commands available in an app in full-screen mode.
+  Windows key+period (.) or semicolon (;) -- Open emoji panel.
+  Windows key+comma (,) -- Temporarily peek at the desktop.
+  Windows key+Pause -- Display the System Properties dialog box.
+  Windows key+Ctrl+F -- Search for PCs (if you're on a network).
+  Windows key+Shift+M -- Restore minimized windows on the desktop.
+  Windows key+number -- Open the desktop and start the app pinned to the taskbar in the position indicated by the number. If the app is already running, switch to that app.
+  Windows key+Shift+number -- Open the desktop and start a new instance of the app pinned to the taskbar in the position indicated by the number.
+  Windows key+Ctrl+number -- Open the desktop and switch to the last active window of the app pinned to the taskbar in the position indicated by the number.
+  Windows key+Alt+number -- Open the desktop and open the Jump List for the app pinned to the taskbar in the position indicated by the number.
+  Windows key+Ctrl+Shift+number -- Open the desktop and open a new instance of the app located at the given position on the taskbar as an administrator.
+  Windows key+Tab -- Open Task view.
+  Windows key+Up arrow -- Maximize the window.
+  Windows key+Down arrow -- Remove current app from screen or minimize the desktop window.
+  Windows key+Left arrow -- Maximize the app or desktop window to the left side of the screen.
+  Windows key+Right arrow -- Maximize the app or desktop window to the right side of the screen.
+  Windows key+Home -- Minimize all except the active desktop window (restores all windows on second stroke).
+  Windows key+Shift+Up arrow -- Stretch the desktop window to the top and bottom of the screen.
+  Windows key+Shift+Down arrow -- Restore or minimize active desktop windows vertically, maintaining width.
+  Windows key+Shift+Left arrow or Right arrow -- Move an app or window in the desktop from one monitor to another.
+  Windows key+Spacebar -- Switch input language and keyboard layout.
+  Windows key+Ctrl+Spacebar -- Change to a previously selected input.
+  Windows key+Ctrl+Enter -- Turn on Narrator.
+  Windows key+Plus (+) -- Open Magnifier.
+  Windows key+forward slash ( / ) -- Begin IME reconversion.
+  Windows key+Ctrl+V -- Open shoulder taps.
+  Windows key+Ctrl+Shift+B -- Wake PC from blank or black screen.
+  Windows key+Alt+Enter (on taskbar item focus) -- Open taskbar settings.
+
+>> Command Prompt keyboard shortcuts (13 shortcuts)
+----------------------------------------------------------------------
+  Ctrl+C (or Ctrl+Insert) -- Copy the selected text.
+  Ctrl+V (or Shift+Insert) -- Paste the selected text.
+  Ctrl+M -- Enter Mark mode.
+  Alt+selection key -- Begin selection in block mode.
+  Arrow keys -- Move the cursor in the direction specified.
+  Page up -- Move the cursor by one page up.
+  Page down -- Move the cursor by one page down.
+  Ctrl+Home (Mark mode) -- Move the cursor to the beginning of the buffer.
+  Ctrl+End (Mark mode) -- Move the cursor to the end of the buffer.
+  Ctrl+Up arrow -- Move up one line in the output history.
+  Ctrl+Down arrow -- Move down one line in the output history.
+  Ctrl+Home (History navigation) -- If the command line is empty, move the viewport to the top of the buffer. Otherwise, delete all the characters to the left of the cursor in the command line.
+  Ctrl+End (History navigation) -- If the command line is empty, move the viewport to the command line. Otherwise, delete all the characters to the right of the cursor in the command line.
+
+>> Dialog box keyboard shortcuts (10 shortcuts)
+----------------------------------------------------------------------
+  F4 -- Display the items in the active list.
+  Ctrl+Tab -- Move forward through tabs.
+  Ctrl+Shift+Tab -- Move back through tabs.
+  Ctrl+number (number 1–9) -- Move to nth tab.
+  Tab -- Move forward through options.
+  Shift+Tab -- Move back through options.
+  Alt+underlined letter -- Perform the command (or select the option) that is used with that letter.
+  Spacebar -- Select or clear the check box if the active option is a check box.
+  Backspace -- Open a folder one level up if a folder is selected in the Save As or Open dialog box.
+  Arrow keys -- Select a button if the active option is a group of option buttons.
+
+>> File Explorer keyboard shortcuts (22 shortcuts)
+----------------------------------------------------------------------
+  Alt+D -- Select the address bar.
+  Ctrl+E -- Select the search box.
+  Ctrl+F -- Select the search box.
+  Ctrl+N -- Open a new window.
+  Ctrl+W -- Close the active window.
+  Ctrl+mouse scroll wheel -- Change the size and appearance of file and folder icons.
+  Ctrl+Shift+E -- Display all folders above the selected folder.
+  Ctrl+Shift+N -- Create a new folder.
+  Num Lock+asterisk (*) -- Display all subfolders under the selected folder.
+  Num Lock+plus (+) -- Display the contents of the selected folder.
+  Num Lock+minus (-) -- Collapse the selected folder.
+  Alt+P -- Display the preview panel.
+  Alt+Enter -- Open the Properties dialog box for the selected item.
+  Alt+Right arrow -- View the next folder.
+  Alt+Up arrow -- View the folder that the folder was in.
+  Alt+Left arrow -- View the previous folder.
+  Backspace -- View the previous folder.
+  Right arrow -- Display the current selection (if it's collapsed), or select the first subfolder.
+  Left arrow -- Collapse the current selection (if it's expanded), or select the folder that the folder was in.
+  End -- Display the bottom of the active window.
+  Home -- Display the top of the active window.
+  F11 -- Maximize or minimize the active window.
+
+>> Virtual desktops keyboard shortcuts (5 shortcuts)
+----------------------------------------------------------------------
+  Windows key+Tab -- Open Task view.
+  Windows key+Ctrl+D -- Add a virtual desktop.
+  Windows key+Ctrl+Right arrow -- Switch between virtual desktops you've created on the right.
+  Windows key+Ctrl+Left arrow -- Switch between virtual desktops you've created on the left.
+  Windows key+Ctrl+F4 -- Close the virtual desktop you're using.
+
+>> Taskbar keyboard shortcuts (5 shortcuts)
+----------------------------------------------------------------------
+  Shift+click a taskbar button -- Open an app or quickly open another instance of an app.
+  Ctrl+Shift+click a taskbar button -- Open an app as an administrator.
+  Shift+right-click a taskbar button -- Show the window menu for the app.
+  Shift+right-click a grouped taskbar button -- Show the window menu for the group.
+  Ctrl+click a grouped taskbar button -- Cycle through the windows of the group.
+
+>> Settings keyboard shortcuts (3 shortcuts)
+----------------------------------------------------------------------
+  Windows key+I -- Open settings.
+  Backspace -- Go back to the settings home page.
+  Type on any page with search box -- Search settings.
+
+======================================================================
+TOTAL SHORTCUTS: 394  (Windows 11: 231, Windows 10: 163)
+======================================================================

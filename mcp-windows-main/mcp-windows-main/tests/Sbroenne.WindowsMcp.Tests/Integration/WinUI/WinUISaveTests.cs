@@ -1,0 +1,198 @@
+using Microsoft.Extensions.Logging.Abstractions;
+
+using Sbroenne.WindowsMcp.Automation;
+using Sbroenne.WindowsMcp.Capture;
+using Sbroenne.WindowsMcp.Input;
+using Sbroenne.WindowsMcp.Tests.Integration.TestHarness;
+using Sbroenne.WindowsMcp.Window;
+
+namespace Sbroenne.WindowsMcp.Tests.Integration.WinUI;
+
+/// <summary>
+/// Integration tests for the save action against WinUI 3 modern app harness.
+/// Tests the SaveAsync method using keyboard-first approach (Ctrl+S) based on FlaUI/pywinauto patterns.
+/// Mirrors the WinForms SaveTests for framework parity.
+/// </summary>
+[Collection("ModernTestHarness")]
+[Trait("Category", "RequiresDesktop")]
+public sealed class WinUISaveTests : IDisposable
+{
+    private readonly ModernTestHarnessFixture _fixture;
+    private readonly UIAutomationService _automationService;
+    private readonly UIAutomationThread _staThread;
+    private readonly string _windowHandle;
+    private readonly string _testOutputDir;
+
+    public WinUISaveTests(ModernTestHarnessFixture fixture)
+    {
+        _fixture = fixture;
+        _fixture.BringToFront();
+
+        _windowHandle = _fixture.TestWindowHandleString;
+        _testOutputDir = Path.Combine(Path.GetTempPath(), "mcp-windows-tests-winui");
+        Directory.CreateDirectory(_testOutputDir);
+
+        _staThread = new UIAutomationThread();
+
+        var elevationDetector = new ElevationDetector();
+        var monitorService = new MonitorService();
+        var windowActivator = new WindowActivator();
+        var mouseService = new MouseInputService();
+        var keyboardService = new KeyboardInputService();
+
+        _automationService = new UIAutomationService(
+            _staThread,
+            monitorService,
+            mouseService,
+            keyboardService,
+            windowActivator,
+            elevationDetector,
+            NullLogger<UIAutomationService>.Instance);
+    }
+
+    public void Dispose()
+    {
+        _staThread.Dispose();
+        _automationService.Dispose();
+
+        // Cleanup test files
+        try
+        {
+            if (Directory.Exists(_testOutputDir))
+            {
+                Directory.Delete(_testOutputDir, recursive: true);
+            }
+        }
+        catch
+        {
+            // Best effort cleanup
+        }
+    }
+
+    [Fact]
+    public async Task Save_WinUI3_SavesFile()
+    {
+        await TestRetry.RunAsync(async _ =>
+        {
+            // Arrange: Prepare test file path
+            var testFilePath = Path.Combine(_testOutputDir, $"winui-test-{Guid.NewGuid()}.txt");
+
+            // Ensure test file doesn't exist
+            if (File.Exists(testFilePath))
+            {
+                File.Delete(testFilePath);
+            }
+
+            // Bring window to front
+            _fixture.BringToFront();
+            await Task.Delay(500);
+
+            // Act: Call SaveAsync on the main window
+            // This sends Ctrl+S, which triggers the Save As dialog in the test harness
+            // Then it fills in the filename and presses Enter
+            var result = await _automationService.SaveAsync(_windowHandle, testFilePath);
+
+            // Assert
+            Assert.True(result.Success, $"Save handling failed: {result.ErrorMessage}");
+
+            // Wait for the harness to finish writing the file. Waiting on the content rather than
+            // on File.Exists also rules out observing a file that has not been flushed yet.
+            var content = string.Empty;
+            var saved = await TestWait.UntilAsync(
+                () =>
+                {
+                    try
+                    {
+                        content = File.ReadAllText(testFilePath);
+                    }
+                    catch (IOException)
+                    {
+                        return false;
+                    }
+
+                    return content.Contains("Test file created at", StringComparison.Ordinal);
+                },
+                TimeSpan.FromSeconds(10));
+
+            Assert.True(saved, $"Expected file to exist with harness content at: {testFilePath}");
+            Assert.NotEmpty(content);
+            Assert.Contains("Test file created at", content);
+        });
+    }
+
+    [Fact]
+    public async Task Save_InvalidWindowHandle_ReturnsError()
+    {
+        // Act
+        var result = await _automationService.SaveAsync("invalid", @"C:\test\file.txt");
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("Invalid window handle", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task Save_NonExistentWindow_ReturnsError()
+    {
+        // Act
+        var result = await _automationService.SaveAsync("999999999", @"C:\test\file.txt");
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Contains("Could not focus", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task Save_WithFilePath_SavesFileWhenDialogAppears()
+    {
+        // This test verifies the Ctrl+S workflow works when a Save dialog appears
+        // The WinUI test harness shows a Save As dialog when it receives Ctrl+S
+        await TestRetry.RunAsync(async _ =>
+        {
+            // Arrange
+            var testFilePath = Path.Combine(_testOutputDir, $"winui-ctrlS-test-{Guid.NewGuid()}.txt");
+
+            _fixture.BringToFront();
+            await Task.Delay(300);
+
+            // Act
+            var result = await _automationService.SaveAsync(_windowHandle, testFilePath);
+
+            // Assert
+            Assert.True(result.Success, $"Save failed: {result.ErrorMessage}");
+
+            var created = await TestWait.UntilAsync(
+                () => File.Exists(testFilePath),
+                TimeSpan.FromSeconds(10));
+            Assert.True(created, $"File was not created at: {testFilePath}");
+        });
+    }
+
+    [Fact]
+    public async Task Save_WithoutFilePath_JustTriggersCtrlS()
+    {
+        // This test verifies that Save without filePath just sends Ctrl+S
+        // If a dialog appears, it returns a hint instead of failing
+        await TestRetry.RunAsync(async _ =>
+        {
+            // Arrange
+            _fixture.BringToFront();
+            await Task.Delay(300);
+
+            // Act - no filePath provided
+            try
+            {
+                var result = await _automationService.SaveAsync(_windowHandle);
+                Assert.True(result.Success, $"Save failed: {result.ErrorMessage}");
+                Assert.True(
+                    await TestWait.UntilAsync(() => _fixture.HasOwnedDialog, TimeSpan.FromSeconds(5)),
+                    "The no-path Save request did not open the harness dialog.");
+            }
+            finally
+            {
+                _fixture.CloseOwnedDialogs();
+            }
+            Assert.False(_fixture.HasOwnedDialog);
+        });
+    }
+}

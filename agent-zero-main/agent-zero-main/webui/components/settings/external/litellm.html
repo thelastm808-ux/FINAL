@@ -1,0 +1,30 @@
+<html>
+  <head>
+    <title>LiteLLM</title>
+  </head>
+
+  <body>
+    <div x-data="{ get settings() { return $store.settings.settings } }">
+      <template x-if="settings">
+        <div>
+          <div class="section-title">LiteLLM Global Settings</div>
+          <div class="section-description">
+            Provider-wide LiteLLM overrides. These values apply to all LiteLLM calls unless a model overrides them.
+          </div>
+
+          <div class="field field-full">
+            <div class="field-label">
+              <div class="field-title">Global LiteLLM parameters</div>
+              <div class="field-description">
+                One <code>KEY=VALUE</code> pair per line, for example <code>stream_timeout=30</code>.
+              </div>
+            </div>
+            <div class="field-control">
+              <textarea style="height: 12em" x-model="settings.litellm_global_kwargs"></textarea>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </body>
+</html>

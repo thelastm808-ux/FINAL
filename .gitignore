@@ -1,0 +1,32 @@
+# Dependencies
+**/node_modules/
+**/.venv/
+**/venv/
+**/ENV/
+**/env/
+
+# Python cache & compiled files
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Build and distribution
+**/dist/
+**/build/
+*.egg-info/
+**/.next/
+**/.nuxt/
+
+# Environment files & secrets
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.test.example
+
+# Large text export dumps exceeding GitHub 100MB file limit
+*_export.md
+
+# Operating system files
+Thumbs.db
+Desktop.ini
+.DS_Store

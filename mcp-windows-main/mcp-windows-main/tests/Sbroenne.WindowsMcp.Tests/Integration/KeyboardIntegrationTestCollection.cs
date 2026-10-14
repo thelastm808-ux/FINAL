@@ -1,0 +1,340 @@
+using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
+using Sbroenne.WindowsMcp.Input;
+using Sbroenne.WindowsMcp.Tests.Integration.TestHarness;
+
+namespace Sbroenne.WindowsMcp.Tests.Integration;
+
+/// <summary>
+/// Test collection for keyboard integration tests that require exclusive access to keyboard input.
+/// Tests in this collection will run sequentially to avoid keyboard input interference.
+/// </summary>
+[Xunit.CollectionDefinition("KeyboardIntegrationTests", DisableParallelization = true)]
+#pragma warning disable CA1711 // Identifiers should not have incorrect suffix - required by xUnit naming convention
+public class KeyboardIntegrationTestCollection : Xunit.ICollectionFixture<KeyboardTestFixture>
+#pragma warning restore CA1711
+{
+}
+
+/// <summary>
+/// Fixture for keyboard integration tests that provides a dedicated test harness window.
+/// </summary>
+[SupportedOSPlatform("windows")]
+public class KeyboardTestFixture : IAsyncLifetime, IDisposable
+{
+    private Thread? _uiThread;
+    private TestHarnessForm? _form;
+    private readonly ManualResetEventSlim _formReady = new(false);
+    private readonly ManualResetEventSlim _formClosed = new(false);
+    private readonly MouseInputService _mouseInputService = new();
+    private bool _isWarmedUp;
+
+    // P/Invoke for foreground window verification
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(nint hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool AllowSetForegroundWindow(int dwProcessId);
+
+    private const int ASFW_ANY = -1;
+
+    /// <summary>
+    /// Gets the handle of the test window.
+    /// </summary>
+    public nint TestWindowHandle { get; private set; }
+
+    /// <summary>
+    /// Gets the keyboard input service for tests.
+    /// </summary>
+    public KeyboardInputService KeyboardInputService { get; } = new();
+
+    /// <summary>
+    /// Gets the test harness form (if available).
+    /// </summary>
+    public TestHarnessForm? Form => _form;
+
+    /// <summary>
+    /// Unique identifier for the test window title.
+    /// </summary>
+    public static string TestWindowTitle => "MCP Windows Test Harness";
+
+    /// <inheritdoc />
+    public async Task InitializeAsync()
+    {
+        // Desktop-input tests are opt-in (they inject real keyboard input). When not enabled every
+        // test in the collection skips, so avoid launching the harness or injecting any warmup input.
+        if (!DesktopInputTests.Enabled)
+        {
+            return;
+        }
+
+        // Create UI thread for the test harness
+        _uiThread = new Thread(RunMessageLoop)
+        {
+            Name = "KeyboardTestFixtureUIThread",
+            IsBackground = true,
+        };
+        _uiThread.SetApartmentState(ApartmentState.STA);
+        _uiThread.Start();
+
+        // Wait for the form to be ready
+        var ready = await Task.Run(() => _formReady.Wait(TimeSpan.FromSeconds(10)));
+        if (!ready || _form == null)
+        {
+            throw new TimeoutException("Test harness window did not appear within timeout");
+        }
+
+        // Get window handle on UI thread
+        _form.Invoke(() =>
+        {
+            TestWindowHandle = _form.Handle;
+        });
+
+        // Perform initial focus acquisition with verification
+        await EnsureTestWindowFocusedAsync();
+
+        // Warmup: verify keyboard input actually works before running tests
+        await WarmupKeyboardInputAsync();
+    }
+
+    private void RunMessageLoop()
+    {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+
+        _form = new TestHarnessForm();
+
+        // Position on secondary monitor if available
+        var testScreen = TestMonitorHelper.GetPreferredTestMonitor();
+        _form.PositionOnMonitor(testScreen);
+
+        _form.Load += (s, e) =>
+        {
+            _form.Activate();
+            _form.FocusTextBox();
+            _formReady.Set();
+        };
+
+        _form.FormClosed += (s, e) =>
+        {
+            _formClosed.Set();
+        };
+
+        Application.Run(_form);
+    }
+
+    /// <inheritdoc />
+    public Task DisposeAsync()
+    {
+        if (_form != null && !_form.IsDisposed)
+        {
+            try
+            {
+                _form.Invoke(() => _form.Close());
+                _formClosed.Wait(TimeSpan.FromSeconds(5));
+            }
+            catch
+            {
+                // Ignore errors during cleanup
+            }
+        }
+
+        _formReady.Dispose();
+        _formClosed.Dispose();
+
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        DisposeAsync().GetAwaiter().GetResult();
+        KeyboardInputService.Dispose();
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Ensures the test window is in the foreground with text box focused.
+    /// Uses retry logic and verification for reliability.
+    /// </summary>
+    public async Task EnsureTestWindowFocusedAsync(int maxRetries = 3, int delayMs = 100)
+    {
+        if (_form == null || _form.IsDisposed)
+        {
+            return;
+        }
+
+        await TestWait.RetryUntilAsync(
+            attempt: async () =>
+            {
+                AllowSetForegroundWindow(ASFW_ANY);
+
+                _form.Invoke(() =>
+                {
+                    if (_form.WindowState == FormWindowState.Minimized)
+                    {
+                        _form.WindowState = FormWindowState.Normal;
+                    }
+
+                    _form.Show();
+                    _form.Activate();
+                    _form.BringToFront();
+                    _form.FocusTextBox();
+                });
+
+                SetForegroundWindow(TestWindowHandle);
+
+                if (!GetValue(form => form.IsInputTextBoxFocused))
+                {
+                    var textBoxCenter = GetValue(form => form.TextBoxCenter);
+                    var clickResult = await _mouseInputService.ClickAsync(textBoxCenter.X, textBoxCenter.Y);
+                    if (!clickResult.Success)
+                    {
+                        throw new InvalidOperationException(
+                            $"Failed to focus the keyboard test harness by clicking it: {clickResult.Error}");
+                    }
+                }
+            },
+            condition: () =>
+                GetForegroundWindow() == TestWindowHandle &&
+                GetValue(form => form.IsInputTextBoxFocused),
+            timeout: TimeSpan.FromMilliseconds(maxRetries * delayMs),
+            pollInterval: TimeSpan.FromMilliseconds(delayMs));
+    }
+
+    /// <summary>
+    /// Ensures the test window is in the foreground with text box focused.
+    /// Synchronous wrapper for backward compatibility.
+    /// </summary>
+    public void EnsureTestWindowFocused()
+    {
+        EnsureTestWindowFocusedAsync().GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Warmup keyboard input to ensure the first actual test doesn't suffer from
+    /// Windows focus/input initialization delays.
+    /// </summary>
+    private async Task WarmupKeyboardInputAsync()
+    {
+        if (_isWarmedUp || _form == null || _form.IsDisposed)
+        {
+            return;
+        }
+
+        // Verify readiness through the observable outcome that the tests depend on: input receipt.
+        var inputReady = await TestWait.RetryUntilAsync(
+            attempt: async () =>
+            {
+                Reset();
+                await EnsureTestWindowFocusedAsync();
+                await KeyboardInputService.TypeTextAsync("x");
+            },
+            condition: () => GetInputText() == "x",
+            timeout: TimeSpan.FromSeconds(5),
+            pollInterval: TimeSpan.FromMilliseconds(100));
+        if (!inputReady)
+        {
+            throw new TimeoutException("Keyboard input did not reach the test harness.");
+        }
+
+        // Clear for actual tests
+        Reset();
+        await EnsureTestWindowFocusedAsync();
+
+        _isWarmedUp = true;
+    }
+
+    /// <summary>
+    /// Resets the test harness state (clears event log, counters, text box, etc.).
+    /// </summary>
+    public void Reset()
+    {
+        if (_form != null && !_form.IsDisposed)
+        {
+            // Drain any input queued by the previous test before clearing observable state.
+            TestWait.UntilStable(
+                () => GetValue(f => f.EventHistory.Count),
+                stableFor: TimeSpan.FromMilliseconds(75),
+                timeout: TimeSpan.FromSeconds(1));
+            _form.Invoke(() => _form.Reset());
+        }
+    }
+
+    /// <summary>
+    /// Gets a value from the test harness form on the UI thread.
+    /// </summary>
+    public T GetValue<T>(Func<TestHarnessForm, T> getter)
+    {
+        if (_form == null || _form.IsDisposed)
+        {
+            throw new InvalidOperationException("Test harness form is not available");
+        }
+
+        return (T)_form.Invoke(() => getter(_form));
+    }
+
+    /// <summary>
+    /// Gets the current text in the input text box.
+    /// </summary>
+    public string GetInputText() => GetValue(f => f.InputText);
+
+    /// <summary>
+    /// Gets the last key that was pressed.
+    /// </summary>
+    public Keys? GetLastKeyPressed() => GetValue(f => f.LastKeyPressed);
+
+    /// <summary>
+    /// Gets the last key modifiers.
+    /// </summary>
+    public Keys GetLastKeyModifiers() => GetValue(f => f.LastKeyModifiers);
+
+    /// <summary>
+    /// Gets all keys pressed since last reset.
+    /// </summary>
+    public List<Keys> GetKeysPressed() => GetValue(f => new List<Keys>(f.KeysPressed));
+
+    /// <summary>
+    /// Gets the event history.
+    /// </summary>
+    public IReadOnlyList<string> GetEventHistory() => GetValue(f => f.EventHistory);
+
+    /// <summary>
+    /// Waits for input text to match the expected value.
+    /// </summary>
+    public async Task<bool> WaitForInputTextAsync(string expectedText, TimeSpan? timeout = null)
+    {
+        return await TestWait.UntilAsync(
+            () => GetInputText() == expectedText,
+            timeout ?? TimeSpan.FromSeconds(2));
+    }
+
+    /// <summary>
+    /// Waits for input text to contain the specified text.
+    /// </summary>
+    public async Task<bool> WaitForInputTextContainsAsync(string expectedText, TimeSpan? timeout = null)
+    {
+        return await TestWait.UntilAsync(
+            () => GetInputText().Contains(expectedText, StringComparison.Ordinal),
+            timeout ?? TimeSpan.FromSeconds(2));
+    }
+
+    /// <summary>
+    /// Asserts that the input text matches the expected value.
+    /// </summary>
+    public void AssertInputText(string expectedText, string? message = null)
+    {
+        var actual = GetInputText();
+        if (actual != expectedText)
+        {
+            throw new Xunit.Sdk.XunitException(
+                message ?? $"Expected input text '{expectedText}', but was '{actual}'");
+        }
+    }
+}

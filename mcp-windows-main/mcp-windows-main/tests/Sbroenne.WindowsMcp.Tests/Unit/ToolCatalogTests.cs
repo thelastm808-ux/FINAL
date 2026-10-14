@@ -1,0 +1,177 @@
+using System.Text.Json;
+using Sbroenne.WindowsMcp.Catalog;
+
+namespace Sbroenne.WindowsMcp.Tests.Unit;
+
+/// <summary>
+/// Unit tests for <see cref="ToolCatalog"/> - the single source of truth that both the MCP server
+/// and the <c>wincli</c> CLI derive their tool surface from. These run without a desktop.
+/// </summary>
+public sealed class ToolCatalogTests
+{
+    [Fact]
+    public void SharedInstructions_ExplainNarrowingAndIncompleteSnapshots()
+    {
+        var instructions = Sbroenne.WindowsMcp.Prompts.WindowsAutomationGuidance.ServerInstructions;
+        Assert.Contains("exactDepth=1", instructions, StringComparison.Ordinal);
+        Assert.Contains("parentElementId", instructions, StringComparison.Ordinal);
+        Assert.Contains("snapshotIncomplete", instructions, StringComparison.Ordinal);
+        Assert.Contains("unmatched nodes still count", instructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FilteredInstructions_IdentifyAvailableToolsAndRefreshRequirements()
+    {
+        var instructions = Sbroenne.WindowsMcp.Prompts.WindowsAutomationGuidance.ForEnabledTools(
+            ["ui_read", "ui_snapshot"]);
+
+        Assert.Contains("Tools available in this server session: ui_read, ui_snapshot", instructions, StringComparison.Ordinal);
+        Assert.Contains("Do not call an unavailable tool", instructions, StringComparison.Ordinal);
+        Assert.Contains("Restart the server and reconnect the MCP client", instructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GetTools_DoesNotExposeRetiredMacro()
+    {
+        Assert.DoesNotContain(ToolCatalog.GetTools(), tool => tool.Name == "ui_macro");
+    }
+
+    [Fact]
+    public void FindDescription_UsesObservedIdsAndVisitedNodeBudget()
+    {
+        var find = Assert.Single(ToolCatalog.GetTools(), tool => tool.Name == "ui_find");
+
+        Assert.Contains("elementId", find.Description, StringComparison.Ordinal);
+        Assert.Contains("2000 visited UIA nodes", find.Description, StringComparison.Ordinal);
+        Assert.Contains("exactDepth=1", find.Description, StringComparison.Ordinal);
+        Assert.Contains("parentElementId", find.Description, StringComparison.Ordinal);
+        Assert.Contains("still count", find.Description, StringComparison.Ordinal);
+        Assert.DoesNotContain("pass its name/automationId/controlType", find.Description, StringComparison.Ordinal);
+        Assert.DoesNotContain("2000 candidates", find.Description, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GetTools_ReturnsAllToolsWithMetadata()
+    {
+        var tools = ToolCatalog.GetTools();
+
+        // Every registered MCP tool must surface with a name, a non-trivial description, and a
+        // JSON Schema exposing its parameters - this is what an MCP client sees via tools/list.
+        Assert.NotEmpty(tools);
+        Assert.All(tools, tool =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(tool.Name), "tool name must be present");
+            Assert.False(string.IsNullOrWhiteSpace(tool.Description), $"{tool.Name} must have a description");
+            Assert.Equal(JsonValueKind.Object, tool.InputSchema.ValueKind);
+            Assert.True(
+                tool.InputSchema.TryGetProperty("properties", out var properties),
+                $"{tool.Name} schema must expose properties");
+            Assert.Equal(JsonValueKind.Object, properties.ValueKind);
+        });
+    }
+
+    [Fact]
+    public void GetTools_IncludesKnownToolsWithExpectedParameters()
+    {
+        var tools = ToolCatalog.GetTools().ToDictionary(tool => tool.Name, StringComparer.Ordinal);
+
+        // Spot-check a representative slice of the surface, including the tools shipped in this PR.
+        Assert.Contains("clipboard", tools.Keys);
+        Assert.Contains("file_open", tools.Keys);
+        Assert.Contains("ui_batch", tools.Keys);
+        Assert.Contains("window_management", tools.Keys);
+
+        Assert.Contains("filePath", ParameterNames(tools["file_open"]));
+        Assert.Contains("windowHandle", ParameterNames(tools["file_open"]));
+        Assert.Contains("action", ParameterNames(tools["clipboard"]));
+        Assert.Contains("steps", ParameterNames(tools["ui_batch"]));
+        Assert.Contains("mode", ParameterNames(tools["ui_snapshot"]));
+        Assert.Contains("snapshotMode", ParameterNames(tools["ui_click"]));
+        Assert.Contains("snapshotMode", ParameterNames(tools["ui_batch"]));
+        Assert.Contains("scope", ParameterNames(tools["ui_find"]));
+        Assert.Contains("elementId", ParameterNames(tools["ui_click"]));
+        Assert.Contains("inputMode", ParameterNames(tools["ui_type"]));
+        Assert.Contains("triggerMode", ParameterNames(tools["file_open"]));
+    }
+
+    [Fact]
+    public void ToJson_ProducesToolsListShapedManifest()
+    {
+        var json = ToolCatalog.ToJson();
+
+        using var document = JsonDocument.Parse(json);
+        Assert.True(document.RootElement.TryGetProperty("tools", out var toolsElement));
+        Assert.Equal(JsonValueKind.Array, toolsElement.ValueKind);
+
+        var catalogCount = ToolCatalog.GetTools().Count;
+        Assert.Equal(catalogCount, toolsElement.GetArrayLength());
+
+        foreach (var tool in toolsElement.EnumerateArray())
+        {
+            Assert.True(tool.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String);
+            Assert.True(tool.TryGetProperty("description", out _));
+            Assert.True(tool.TryGetProperty("inputSchema", out var schema) && schema.ValueKind == JsonValueKind.Object);
+        }
+    }
+
+    [Fact]
+    public void GetTools_EveryDescriptionContainsKeywordsLine()
+    {
+        var tools = ToolCatalog.GetTools();
+
+        // Every tool description must carry a "Keywords:" line. These synonym-rich keyword lists
+        // improve tool discovery: an LLM matching a task ("close the frozen app", "copy this text")
+        // to a tool relies on the description, so each tool enumerates the phrasings a user might use.
+        Assert.All(tools, tool =>
+            Assert.True(
+                tool.Description?.Contains("Keywords:", StringComparison.Ordinal) == true,
+                $"{tool.Name} description must contain a 'Keywords:' line"));
+    }
+
+    [Fact]
+    public void SnapshotDescriptions_ExplainWhenToUseModesAndKnownSubtrees()
+    {
+        var tools = ToolCatalog.GetTools().ToDictionary(tool => tool.Name, StringComparer.Ordinal);
+        var snapshot = tools["ui_snapshot"];
+
+        Assert.StartsWith("MODE RULE (REQUIRED):", snapshot.Description, StringComparison.Ordinal);
+        Assert.Contains("mode='auto' on BOTH snapshot calls", snapshot.Description, StringComparison.Ordinal);
+        Assert.Contains("Never omit mode", snapshot.Description, StringComparison.Ordinal);
+        Assert.Contains("Use full for a one-time inspection", snapshot.Description, StringComparison.Ordinal);
+        Assert.Contains("use auto on the first check", snapshot.Description, StringComparison.Ordinal);
+        Assert.Contains("full is not remembered", snapshot.Description, StringComparison.Ordinal);
+        Assert.Contains("Use reset when starting a new comparison", snapshot.Description, StringComparison.Ordinal);
+        Assert.Contains("snapshotIncomplete", snapshot.Description, StringComparison.Ordinal);
+        Assert.Contains("snapshotWarning", snapshot.Description, StringComparison.Ordinal);
+
+        var mode = Parameter(snapshot, "mode");
+        Assert.Equal("full", mode.GetProperty("default").GetString());
+        Assert.Contains("same window or subtree", mode.GetProperty("description").GetString(), StringComparison.Ordinal);
+        Assert.Contains("auto on BOTH the first and later snapshots", mode.GetProperty("description").GetString(), StringComparison.Ordinal);
+
+        var parent = Parameter(snapshot, "parentElementId");
+        Assert.Contains("known subtree", parent.GetProperty("description").GetString(), StringComparison.Ordinal);
+        Assert.Contains("earlier snapshot or find", parent.GetProperty("description").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PostActionSnapshotDescriptions_ExplainWhenToUseEachMode()
+    {
+        var tools = ToolCatalog.GetTools().ToDictionary(tool => tool.Name, StringComparer.Ordinal);
+        foreach (var toolName in new[] { "ui_click", "ui_type", "ui_select", "ui_batch" })
+        {
+            var mode = Parameter(tools[toolName], "snapshotMode");
+
+            Assert.Equal("full", mode.GetProperty("default").GetString());
+            Assert.Contains("one verification", mode.GetProperty("description").GetString(), StringComparison.Ordinal);
+            Assert.Contains("repeated checks", mode.GetProperty("description").GetString(), StringComparison.Ordinal);
+            Assert.Contains("new comparison", mode.GetProperty("description").GetString(), StringComparison.Ordinal);
+        }
+    }
+
+    private static IEnumerable<string> ParameterNames(ToolCatalogEntry entry) =>
+        entry.InputSchema.GetProperty("properties").EnumerateObject().Select(property => property.Name);
+
+    private static JsonElement Parameter(ToolCatalogEntry entry, string name) =>
+        entry.InputSchema.GetProperty("properties").GetProperty(name);
+}

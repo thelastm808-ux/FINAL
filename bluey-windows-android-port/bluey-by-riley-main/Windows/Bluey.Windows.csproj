@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Bluey</AssemblyName>
+    <RootNamespace>Bluey.Windows</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="UIAutomationClient" />
+    <Reference Include="UIAutomationTypes" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\Shared\Fonts\Fredoka.ttf" Link="Assets\Fredoka.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\Shared\Fonts\IBMPlexSans.ttf" Link="Assets\IBMPlexSans.ttf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

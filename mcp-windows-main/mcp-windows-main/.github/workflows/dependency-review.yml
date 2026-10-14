@@ -1,0 +1,22 @@
+name: 'Dependency Review'
+
+on: [pull_request]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout Repository'
+        uses: actions/checkout@v7
+
+      - name: 'Dependency Review'
+        uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always

@@ -1,0 +1,64 @@
+# Enabled unpacked Chromium extension directories.
+# Paths must be readable from the Agent Zero runtime itself.
+extension_paths: []
+
+# Page opened by new Browser sessions when no URL is provided.
+default_homepage: "about:blank"
+
+# When the Browser surface is already open, keep it synced to agent Browser tool results.
+autofocus_active_page: true
+
+# Browser tab visibility in the WebUI. Both modes use the same internal
+# Chromium runtime and sign-in profile:
+# - per_context: each chat shows only its own Browser tabs.
+# - shared: show Browser tabs from all active chats.
+browser_tab_scope: "per_context"
+
+# Maximum number of Browser tabs/pages a single chat context may keep open.
+# Raise this only for deliberate parallel browsing workflows.
+max_open_tabs: 32
+
+# JavaScript evaluate deadline in seconds, including result/state collection.
+# Accepts finite values from 0.1 to 60; invalid values are rejected.
+# Interrupts in place first. Unresolved async execution may require reloading
+# the affected tab, which can lose unsaved page edits.
+evaluate_timeout_seconds: 30
+
+# Runtime used by the agent-facing browser tool:
+# - container: use Agent Zero's Docker/server Playwright browser.
+# - host_required: use a host browser through Launcher or A0 CLI and prepare it on first use when possible.
+runtime_backend: "container"
+
+# Optional proxy used only by the internal Docker browser.
+# Server examples: http://proxy.example:3128 or socks5://proxy.example:1080.
+proxy_server: ""
+proxy_bypass: ""
+proxy_username: ""
+proxy_password: ""
+
+# Local-model enforcement for host-browser content:
+# - enforce_local: block host page content and screenshots unless the active chat model is local.
+# - warn: allow and return a warning in tool output.
+# - allow: allow without warning.
+host_browser_privacy_policy: "allow"
+
+# Host-browser profile preference:
+# - existing: use the user's authorized existing browser profile when available.
+# - agent: use a clean A0-controlled browser profile on the host.
+host_browser_profile_mode: "existing"
+
+# Optional host browser target when using an existing browser.
+# Empty means the connected host chooses the first supported/active browser.
+# Values may be browser family ids (chrome, edge, chromium), Safari's
+# host-advertised safari:default id, or other host-advertised ids/endpoints.
+host_browser_selection: ""
+
+# Optional _model_config preset used by Browser-owned model helpers.
+# Empty uses the effective Main Model.
+model_preset: ""
+
+# XKB keyboard layout applied to the interactive Browser display so typed keys
+# match the physical keyboard. German Mac example: keyboard_layout: "de",
+# keyboard_variant: "mac" (Option+L then types "@"). Empty keeps US behavior.
+keyboard_layout: ""
+keyboard_variant: ""

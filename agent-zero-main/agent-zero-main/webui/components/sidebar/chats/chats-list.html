@@ -1,0 +1,255 @@
+<html>
+
+<head>
+  <script type="module">
+    import { store } from "/components/sidebar/chats/chats-store.js";
+  </script>
+</head>
+
+<body>
+  <div x-data>
+    <template x-if="$store.chats">
+      <div class="chats-list-container" x-data>
+        <x-extension id="sidebar-chats-list-start"></x-extension>
+        <div class="section-header-row">
+          <h3 class="section-header">Chats</h3>
+          <!-- New Chat Button -->
+          <button id="newChat" class="btn-icon-action chat-list-action-btn" @click="$store.chats.newChat()" aria-label="New Chat" title="New Chat" data-bs-placement="top" data-bs-trigger="hover">
+            <x-icon name="chat_add_on"></x-icon>
+          </button>
+          <x-extension id="chats-header-controls"></x-extension>
+        </div>
+
+        <x-extension id="sidebar-chats-list-view" class="sidebar-list-view"></x-extension>
+        <template x-if="!$store.sidebar.hasListView('chat')">
+          <div class="sidebar-default-list">
+            <ul class="config-list chats-config-list no-scrollbar" x-show="$store.chats.topLevelContexts().length > 0">
+              <template x-for="(context, contextIndex) in $store.chats.topLevelContexts()" :key="context.id">
+                <li class="chat-tree-item"
+                  :class="{ 'sidebar-list-divider': $store.sidebar.hasRowDividerBefore('chat', context, contextIndex, $store.chats.topLevelContexts()) }">
+                  <x-component path="sidebar/chats/chat-tree.html"></x-component>
+                </li>
+              </template>
+            </ul>
+            <div class="empty-list-message" x-show="$store.chats.topLevelContexts().length === 0">
+              <p><i>No chats to list.</i></p>
+            </div>
+          </div>
+        </template>
+        <x-extension id="sidebar-chats-list-end"></x-extension>
+      </div>
+    </template>
+  </div>
+
+  <style>
+    .chats-list-container .section-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      flex-shrink: 0;
+      margin-bottom: var(--spacing-xs);
+      z-index: 10;
+    }
+
+    .chats-list-container .section-header {
+      margin: 0;
+      margin-right: auto;
+    }
+
+    /* Chats list container and items */
+    .chats-list-container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      margin-top: var(--spacing-md);
+    }
+
+    .chats-config-list {
+      flex: 1;
+      min-height: 0;
+      overflow: scroll;
+      scroll-behavior: smooth;
+      max-height: 100%;
+    }
+
+    .chats-config-list > .chat-tree-item {
+      padding-block: var(--spacing-xxs);
+    }
+
+    .chat-container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      min-height: calc(var(--spacing-lg) + var(--spacing-xxs));
+      border-radius: 4px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .chats-config-list .chat-tree-item {
+      display: block;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+
+    .chat-child-list {
+      list-style: none;
+      padding: 0 0 0 calc(var(--spacing-md) + var(--spacing-xs));
+      margin: 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .chats-config-list .chat-child-list > li {
+      display: block;
+      padding: 0;
+    }
+
+    .chat-child-list .chat-child-list .chat-child-list {
+      padding-left: var(--spacing-sm);
+    }
+
+    .chat-child-list .chat-child-list .chat-child-list .chat-child-list {
+      padding-left: 0;
+    }
+
+    .chat-expand-btn {
+      position: absolute;
+      left: var(--spacing-xxs);
+      top: 50%;
+      transform: translateY(-50%);
+      width: 18px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border: 0;
+      background: transparent;
+      color: var(--color-text-muted);
+      opacity: 0;
+      pointer-events: none;
+      padding: 0;
+      margin: 0;
+      z-index: 1;
+    }
+
+    .chat-expand-btn.is-visible {
+      opacity: 0.95;
+      pointer-events: auto;
+    }
+
+    .chat-expand-btn.is-visible:hover {
+      color: var(--color-text);
+      opacity: 1;
+    }
+
+    .chat-expand-btn .material-symbols-outlined {
+      font-size: 18px;
+    }
+
+    .chat-container.chat-has-children .chat-list-button {
+      padding-left: calc(var(--spacing-md) + var(--spacing-xs));
+    }
+
+    .chat-list-button {
+      display: flex;
+      align-items: center;
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: var(--spacing-xs);
+      overflow: hidden;
+      gap: 0.5em;
+    }
+
+    .chat-list-button .project-color-ball {
+      width: 0.5em;
+      height: 0.5em;
+    }
+
+    .chats-list-container .project-color-ball.heartbeat {
+      animation: chat-working-bubble 1500ms ease-in-out infinite;
+      transform-origin: center;
+      will-change: border-radius, transform;
+    }
+
+    @keyframes chat-working-bubble {
+      0% {
+        border-radius: 50%;
+        transform: rotate(0deg) scale(1);
+      }
+      25% {
+        border-radius: 0;
+        transform: rotate(45deg) scale(0.9);
+      }
+      75% {
+        border-radius: 0;
+        transform: rotate(405deg) scale(0.9);
+      }
+      100% {
+        border-radius: 50%;
+        transform: rotate(405deg) scale(1);
+      }
+    }
+
+    .chat-name {
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: var(--font-size-small);
+    }
+
+    .chat-list-action-btn {
+      flex-shrink: 0;
+      margin-right: 8px;
+    }
+
+    .chat-container:hover{
+      background-color: var(--color-background-hover);
+    }
+
+    .device-pointer .chat-container .chat-list-action-btn,
+    .device-touch .chat-container:not(.chat-selected) .chat-list-action-btn {
+      display: none;
+    }
+
+    .device-pointer .chat-container:hover .chat-list-action-btn,
+    .device-touch .chat-container.chat-selected .chat-list-action-btn {
+      display: inline-flex;
+    }
+
+    .empty-list-message {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100px;
+      color: var(--color-secondary);
+      text-align: center;
+      opacity: 0.7;
+      font-style: italic;
+    }
+
+    .light-mode .empty-list-message {
+      color: var(--color-secondary-light);
+    }
+
+    /* Selected chat accent */
+    .chat-selected .chat-name {
+      font-size: var(--font-size-normal);
+      font-weight: bold;
+    }
+
+    /* .chat-list-button.font-bold { position: relative; background-color: var(--color-border) 0.05; } */
+    /* .chat-list-button.font-bold::before { content: ""; position: absolute; left: 0; top: 0; height: 100%; width: 3px; background-color: var(--color-border); border-top-left-radius: 3px; border-bottom-left-radius: 3px; } */
+    /* .light-mode .chat-list-button.font-bold { background-color: var(--color-border) 0.05; } */
+    /* .light-mode .chat-list-button.font-bold::before { background-color: var(--color-border); } */
+  </style>
+</body>
+
+</html>

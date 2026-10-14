@@ -1,0 +1,239 @@
+using System.Runtime.Versioning;
+using Sbroenne.WindowsMcp.Automation;
+
+namespace Sbroenne.WindowsMcp.Tests.Unit;
+
+/// <summary>
+/// Unit tests for the ElementIdGenerator class.
+/// Tests focus on the resolve/parse paths that don't require live COM objects.
+/// </summary>
+[SupportedOSPlatform("windows")]
+[Collection("ElementIdRegistry")]
+public class ElementIdGeneratorTests
+{
+    [Fact]
+    public async Task DisposingAutomationThreadRetiresItsObservedReferences()
+    {
+        string id;
+        using (var thread = new UIAutomationThread())
+        {
+            id = await thread.ExecuteAsync(() =>
+                ElementIdGenerator.RegisterFullId("window:1|runtime:101|path:cached"));
+            Assert.NotNull(ElementIdGenerator.ResolveFullId(id));
+        }
+
+        Assert.Null(ElementIdGenerator.ResolveFullId(id));
+        var rediscovered = ElementIdGenerator.RegisterFullId("window:1|runtime:101|path:cached");
+        Assert.NotEqual(id, rediscovered);
+    }
+
+    [Fact]
+    public void IssuedReferenceCannotBeMistakenForACommandLineOption()
+    {
+        var id = ElementIdGenerator.RegisterFullId("window:1|runtime:91|path:cached");
+        Assert.StartsWith("e", id, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Clear_DoesNotAllowOldIdsToResolveToNewControls()
+    {
+        var oldId = ElementIdGenerator.RegisterFullId("window:1|runtime:7|path:cached");
+        ElementIdGenerator.Clear();
+        var newId = ElementIdGenerator.RegisterFullId("window:1|runtime:8|path:cached");
+
+        Assert.NotEqual(oldId, newId);
+        Assert.Null(ElementIdGenerator.ResolveFullId(oldId));
+    }
+
+    [Fact]
+    public void RegisterFullId_RenameAndPathChangesKeepSameObservedIdentity()
+    {
+        ElementIdGenerator.Clear();
+        var before = ElementIdGenerator.RegisterFullId("window:1|runtime:7|path:0|sel:Button~Save");
+        var after = ElementIdGenerator.RegisterFullId("window:1|runtime:7|path:cached|sel:Button~Saved");
+
+        Assert.Equal(before, after);
+        Assert.Equal(1, ElementIdGenerator.RetainedIdCount);
+    }
+
+    [Fact]
+    public void TryResolveWindowHandle_DoesNotAcceptUnregisteredInternalIdentity()
+    {
+        Assert.False(ElementIdGenerator.TryResolveWindowHandle(
+            "window:12345|runtime:7|path:cached", out _));
+    }
+
+    [Fact]
+    public void RegisterFullId_WhenCapacityExceeded_EvictsOldestId()
+    {
+        ElementIdGenerator.Clear();
+        var firstShortId = ElementIdGenerator.RegisterFullId("window:1|runtime:1|path:cached");
+
+        for (var i = 2; i <= ElementIdGenerator.MaxRetainedIds + 1; i++)
+        {
+            ElementIdGenerator.RegisterFullId($"window:1|runtime:{i}|path:cached");
+        }
+
+        Assert.Null(ElementIdGenerator.ResolveFullId(firstShortId));
+        Assert.Equal(ElementIdGenerator.MaxRetainedIds, ElementIdGenerator.RetainedIdCount);
+    }
+
+    [Fact]
+    public void RegisterFullId_WhenIdAlreadyExists_ReusesShortIdWithoutGrowingCache()
+    {
+        ElementIdGenerator.Clear();
+        const string FullId = "window:1|runtime:7|path:cached";
+
+        var first = ElementIdGenerator.RegisterFullId(FullId);
+        var second = ElementIdGenerator.RegisterFullId(FullId);
+
+        Assert.Equal(first, second);
+        Assert.Equal(1, ElementIdGenerator.RetainedIdCount);
+    }
+
+    #region ResolveToAutomationElement Tests
+
+    [Fact]
+    public void ResolveToAutomationElement_NullElementId_ThrowsArgumentNullException()
+    {
+        Assert.Throws<ArgumentNullException>(() =>
+            ElementIdGenerator.ResolveToAutomationElement(null!));
+    }
+
+    [Fact]
+    public void ResolveToAutomationElement_NonExistentShortId_ReturnsNull()
+    {
+        // A short ID that was never registered should return null
+        var result = ElementIdGenerator.ResolveToAutomationElement("99999999");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveToAutomationElement_InvalidFullIdFormat_ReturnsNull()
+    {
+        // A string that doesn't match the "window:X|runtime:Y|path:Z" format
+        var result = ElementIdGenerator.ResolveToAutomationElement("invalid-format-string");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveToAutomationElement_MalformedFullId_WrongPartCount_ReturnsNull()
+    {
+        // Only 2 parts instead of 3
+        var result = ElementIdGenerator.ResolveToAutomationElement("window:0|runtime:0");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveToAutomationElement_MalformedFullId_InvalidWindowHandle_ReturnsNull()
+    {
+        // Window handle part is not a valid number
+        var result = ElementIdGenerator.ResolveToAutomationElement("window:abc|runtime:0|path:0");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveToAutomationElement_MalformedFullId_NegativeTreeIndex_ReturnsNull()
+    {
+        var result = ElementIdGenerator.ResolveToAutomationElement("window:0|runtime:0|path:-1");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveToAutomationElement_EmptyString_ReturnsNull()
+    {
+        var result = ElementIdGenerator.ResolveToAutomationElement("");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveToAutomationElement_StaleElement_ReturnsNull()
+    {
+        // An element ID with "stale" path should gracefully return null
+        // (window:0 won't have the element, and runtime:0 won't match)
+        var result = ElementIdGenerator.ResolveToAutomationElement("window:0|runtime:0|path:stale");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveToAutomationElement_ZeroWindowWithStaleRuntime_ReturnsNull()
+    {
+        // Window handle 0 falls back to the root desktop element,
+        // but a non-parseable path with runtime:0 should fail gracefully
+        var result = ElementIdGenerator.ResolveToAutomationElement("window:0|runtime:0|path:stale");
+
+        Assert.Null(result);
+    }
+
+    #endregion
+
+    #region ID Format Tests
+
+    [Fact]
+    public void ResolveToAutomationElement_WellFormedFullId_DoesNotThrow()
+    {
+        // A well-formed full ID with a non-existent window handle should return null gracefully
+        var result = ElementIdGenerator.ResolveToAutomationElement("window:12345|runtime:42.7.1|path:0.1.2");
+
+        // Should not throw — the element just won't be found
+        Assert.Null(result);
+    }
+
+    [Theory]
+    [InlineData("window:0|runtime:0|path:0")]
+    [InlineData("window:123|runtime:42.7.1|path:0.1")]
+    [InlineData("window:99999|runtime:1.2.3.4|path:cached")]
+    [InlineData("window:0|runtime:0|path:error")]
+    public void ResolveToAutomationElement_VariousWellFormedIds_DoesNotThrow(string fullId)
+    {
+        // All valid formats should be handled gracefully without throwing
+        var exception = Record.Exception(() => ElementIdGenerator.ResolveToAutomationElement(fullId));
+
+        Assert.Null(exception);
+    }
+
+    [Theory]
+    [InlineData("window:12345|runtime:42.7.1|path:0.1|sel:Button~Submit")]
+    [InlineData("window:0|runtime:0|path:stale|sel:Hyperlink~Sign in")]
+    [InlineData("window:123|runtime:0|path:cached|sel:Edit~")]
+    public void ResolveToAutomationElement_SelectorSegment_DoesNotThrowAndReturnsNull(string fullId)
+    {
+        // Locator-style ids carry an optional "|sel:{controlType}~{name}" fallback segment.
+        // With a non-existent window handle nothing resolves, but parsing must not throw.
+        var exception = Record.Exception(() =>
+        {
+            var result = ElementIdGenerator.ResolveToAutomationElement(fullId);
+            Assert.Null(result);
+        });
+
+        Assert.Null(exception);
+    }
+
+    #endregion
+
+    #region Thread Safety Tests
+
+    [Fact]
+    public void ResolveToAutomationElement_ConcurrentCalls_DoNotThrow()
+    {
+        // Verify that concurrent resolve calls don't cause threading issues
+        var tasks = Enumerable.Range(0, 100)
+            .Select(i => Task.Run(() =>
+                ElementIdGenerator.ResolveToAutomationElement($"non-existent-{i}")))
+            .ToArray();
+
+        var exception = Record.Exception(() => Task.WaitAll(tasks));
+
+        Assert.Null(exception);
+        Assert.All(tasks, t => Assert.Null(t.Result));
+    }
+
+    #endregion
+}

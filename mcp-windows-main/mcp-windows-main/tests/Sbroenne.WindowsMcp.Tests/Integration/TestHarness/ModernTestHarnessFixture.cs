@@ -1,0 +1,343 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+using Sbroenne.WindowsMcp.Automation;
+using Sbroenne.WindowsMcp.Native;
+using UIA = Interop.UIAutomationClient;
+
+namespace Sbroenne.WindowsMcp.Tests.Integration.TestHarness;
+
+/// <summary>
+/// xUnit fixture that manages the WinUI 3 Modern Test Harness.
+/// Unlike the WinForms harness which runs in-process, this launches a separate .exe
+/// and communicates via UI Automation to verify the harness is ready.
+/// </summary>
+public sealed class ModernTestHarnessFixture : IDisposable
+{
+    private const int ASFW_ANY = -1;
+    private const string HarnessWindowTitle = "MCP Windows Modern Test Harness";
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(nint hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern bool AllowSetForegroundWindow(int dwProcessId);
+
+    [DllImport("user32.dll")]
+    private static extern nint GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowEnabled(nint hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern nint FindWindow(string? lpClassName, string lpWindowName);
+
+    private Process? _harnessProcess;
+    private nint _windowHandle;
+    private bool _disposed;
+
+    /// <summary>
+    /// Gets whether the harness is ready for use.
+    /// </summary>
+    public bool IsReady => _windowHandle != nint.Zero && _harnessProcess != null && !_harnessProcess.HasExited;
+
+    /// <summary>
+    /// Gets the window handle of the modern test harness.
+    /// </summary>
+    public nint TestWindowHandle => _windowHandle;
+
+    /// <summary>
+    /// Gets the window handle as a decimal string.
+    /// </summary>
+    public string TestWindowHandleString => WindowHandleParser.Format(_windowHandle);
+
+    /// <summary>
+    /// Gets the path to the harness executable.
+    /// </summary>
+    public string HarnessPath { get; }
+
+    public ModernTestHarnessFixture()
+    {
+        // Find the harness executable relative to the test assembly
+        HarnessPath = FindHarnessExecutable();
+
+        if (!File.Exists(HarnessPath))
+        {
+            throw new FileNotFoundException(
+                $"Modern test harness not found at: {HarnessPath}. " +
+                "The test project builds it automatically via ProjectReference; if you are running " +
+                "with --no-build, build it first with: " +
+                "dotnet build tests\\Sbroenne.WindowsMcp.ModernHarness -c Debug",
+                HarnessPath);
+        }
+
+        try
+        {
+            LaunchHarness();
+        }
+        catch
+        {
+            CloseHarness();
+            throw;
+        }
+    }
+
+    private static string FindHarnessExecutable()
+    {
+        // The harness should be built alongside the test project
+        // Look for it in common locations relative to the test assembly
+        var testDir = Path.GetDirectoryName(typeof(ModernTestHarnessFixture).Assembly.Location)!;
+
+        // Expected: tests/Sbroenne.WindowsMcp.Tests/bin/Debug/net10.0-windows.../
+        // Harness:  tests/Sbroenne.WindowsMcp.ModernHarness/bin/Debug/net10.0-windows.../
+
+        // Try sibling project path
+        var parentDir = Path.GetDirectoryName(testDir);
+        while (parentDir != null)
+        {
+            // Check if we're in a bin folder
+            if (Path.GetFileName(parentDir)?.Equals("bin", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                // Go up to project folder, then to sibling project
+                var projectDir = Path.GetDirectoryName(parentDir);
+                var testsDir = Path.GetDirectoryName(projectDir);
+                if (testsDir != null)
+                {
+                    var harnessProjectDir = Path.Combine(testsDir, "Sbroenne.WindowsMcp.ModernHarness");
+                    var configDir = Path.GetFileName(Path.GetDirectoryName(testDir)); // e.g., net10.0-windows...
+                    var buildConfig = Path.GetFileName(parentDir) == "bin"
+                        ? Path.GetFileName(testDir.Replace(parentDir + Path.DirectorySeparatorChar, "").Split(Path.DirectorySeparatorChar)[0])
+                        : "Debug";
+
+                    // Find matching output directory
+                    var harnessOutputBase = Path.Combine(harnessProjectDir, "bin");
+                    if (Directory.Exists(harnessOutputBase))
+                    {
+                        // Look for the harness exe in any config/tfm combination
+                        var harnessExes = Directory.GetFiles(harnessOutputBase, "Sbroenne.WindowsMcp.ModernHarness.exe", SearchOption.AllDirectories);
+                        if (harnessExes.Length > 0)
+                        {
+                            // Prefer matching configuration
+                            var preferred = harnessExes.FirstOrDefault(p => p.Contains(buildConfig, StringComparison.OrdinalIgnoreCase))
+                                          ?? harnessExes[0];
+                            return preferred;
+                        }
+                    }
+                }
+                break;
+            }
+            parentDir = Path.GetDirectoryName(parentDir);
+        }
+
+        // Fallback: assume it's in the same directory as the test assembly
+        return Path.Combine(testDir, "Sbroenne.WindowsMcp.ModernHarness.exe");
+    }
+
+    private void LaunchHarness()
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = HarnessPath,
+            UseShellExecute = false,
+            CreateNoWindow = false,
+        };
+
+        _harnessProcess = Process.Start(startInfo);
+
+        if (_harnessProcess == null)
+        {
+            throw new InvalidOperationException($"Failed to start modern test harness: {HarnessPath}");
+        }
+
+        var timeout = TimeSpan.FromSeconds(30); // WinUI apps can take longer to start
+        var appeared = TestWait.Until(
+            condition: () =>
+            {
+                _windowHandle = FindWindow(null, HarnessWindowTitle);
+                if (_harnessProcess.HasExited)
+                {
+                    throw new InvalidOperationException(
+                        $"Modern test harness exited with code {_harnessProcess.ExitCode}");
+                }
+
+                return _windowHandle != nint.Zero;
+            },
+            timeout: timeout,
+            pollInterval: TimeSpan.FromMilliseconds(100));
+
+        if (!appeared)
+        {
+            throw new TimeoutException(
+                $"Modern test harness window did not appear within {timeout.TotalSeconds} seconds");
+        }
+
+        var automationReady = TestWait.Until(
+            condition: IsAutomationTreeReady,
+            timeout: TimeSpan.FromSeconds(10),
+            pollInterval: TimeSpan.FromMilliseconds(100));
+        if (!automationReady)
+        {
+            throw new TimeoutException("Modern test harness UI Automation tree did not become ready.");
+        }
+    }
+
+    /// <summary>
+    /// Closes only visible popups owned by this harness and verifies they disappear.
+    /// </summary>
+    public void CloseOwnedDialogs()
+    {
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var dialog = GetOwnedDialog();
+            if (dialog == nint.Zero)
+            {
+                if (!TestWait.Until(() => IsWindowEnabled(_windowHandle)))
+                {
+                    throw new TimeoutException("Modern harness remained disabled after dialog cleanup.");
+                }
+                return;
+            }
+
+            if (!NativeMethods.PostMessage(dialog, NativeConstants.WM_CLOSE, nint.Zero, nint.Zero))
+            {
+                throw new InvalidOperationException($"Could not close harness dialog {dialog}.");
+            }
+
+            if (!TestWait.Until(() => GetOwnedDialog() != dialog))
+            {
+                throw new TimeoutException($"Harness dialog {dialog} did not close.");
+            }
+        }
+
+        throw new InvalidOperationException("Modern harness still has an owned dialog after five close attempts.");
+    }
+
+    public bool HasOwnedDialog => GetOwnedDialog() != nint.Zero;
+
+    private nint GetOwnedDialog()
+    {
+        nint dialog = nint.Zero;
+        if (!NativeMethods.EnumWindows((candidate, _) =>
+        {
+            if (candidate == _windowHandle || !NativeMethods.IsWindowVisible(candidate))
+            {
+                return true;
+            }
+
+            var owner = NativeMethods.GetWindow(candidate, NativeConstants.GW_OWNER);
+            for (var depth = 0; depth < 64 && owner != nint.Zero; depth++)
+            {
+                if (owner == _windowHandle)
+                {
+                    dialog = candidate;
+                    break;
+                }
+
+                owner = NativeMethods.GetWindow(owner, NativeConstants.GW_OWNER);
+            }
+
+            return true;
+        }, nint.Zero))
+        {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        return dialog;
+    }
+
+    /// <summary>
+    /// Brings the harness window to the foreground.
+    /// </summary>
+    public void BringToFront()
+    {
+        if (_windowHandle == nint.Zero)
+        {
+            return;
+        }
+
+        CloseOwnedDialogs();
+        TestWait.RetryUntil(
+            attempt: () =>
+            {
+                AllowSetForegroundWindow(ASFW_ANY);
+                SetForegroundWindow(_windowHandle);
+            },
+            condition: () => GetForegroundWindow() == _windowHandle,
+            timeout: TimeSpan.FromSeconds(1),
+            pollInterval: TimeSpan.FromMilliseconds(100));
+    }
+
+    /// <summary>
+    /// Closes and restarts the harness to reset state.
+    /// </summary>
+    public void Reset()
+    {
+        // For the modern harness, we need to communicate via UI Automation
+        // or simply restart the process. For now, restart is simpler.
+        CloseHarness();
+        LaunchHarness();
+    }
+
+    private void CloseHarness()
+    {
+        if (_harnessProcess != null && !_harnessProcess.HasExited)
+        {
+            try
+            {
+                _harnessProcess.CloseMainWindow();
+                if (!_harnessProcess.WaitForExit(5000))
+                {
+                    _harnessProcess.Kill();
+                }
+            }
+            catch
+            {
+                // Ignore errors during cleanup
+            }
+        }
+
+        _harnessProcess?.Dispose();
+        _harnessProcess = null;
+        _windowHandle = nint.Zero;
+    }
+
+    private bool IsAutomationTreeReady()
+    {
+        try
+        {
+            var automation = UIA3Automation.Instance;
+            var root = automation.ElementFromHandle(_windowHandle);
+            var navigationView = automation.CreatePropertyCondition(
+                UIA3PropertyIds.AutomationId,
+                "MainNavView");
+            return root?.FindFirst(
+                UIA.TreeScope.TreeScope_Descendants,
+                navigationView) != null;
+        }
+        catch (COMException)
+        {
+            return false;
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        CloseHarness();
+    }
+}
+
+/// <summary>
+/// Collection definition for tests that use the modern test harness.
+/// Parallelization is disabled to avoid competing for foreground window.
+/// </summary>
+[CollectionDefinition("ModernTestHarness", DisableParallelization = true)]
+public class ModernTestHarnessTestDefinition : ICollectionFixture<ModernTestHarnessFixture>
+{
+}

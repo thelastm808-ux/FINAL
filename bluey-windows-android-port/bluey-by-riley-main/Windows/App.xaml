@@ -1,0 +1,17 @@
+<Application x:Class="Bluey.Windows.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" StartupUri="MainWindow.xaml">
+  <Application.Resources>
+    <Color x:Key="Ink">#FFF4F1FA</Color>
+    <Color x:Key="InkSoft">#FF9894A8</Color>
+    <Color x:Key="Panel">#FF181821</Color>
+    <Color x:Key="Berry">#FF779BFF</Color>
+    <SolidColorBrush x:Key="InkBrush" Color="{StaticResource Ink}" />
+    <SolidColorBrush x:Key="InkSoftBrush" Color="{StaticResource InkSoft}" />
+    <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource Panel}" />
+    <SolidColorBrush x:Key="BerryBrush" Color="{StaticResource Berry}" />
+    <Style TargetType="Button">
+      <Setter Property="Foreground" Value="#FFF4F1FA"/><Setter Property="Background" Value="#FF292936"/><Setter Property="BorderBrush" Value="#FF393947"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="14,9"/><Setter Property="Cursor" Value="Hand"/><Setter Property="FontSize" Value="13"/><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#FF373747"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style TargetType="TextBox"><Setter Property="Foreground" Value="#FFF4F1FA"/><Setter Property="Background" Value="#FF101017"/><Setter Property="BorderBrush" Value="#FF393947"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,8"/><Setter Property="CaretBrush" Value="#FFF4F1FA"/></Style>
+    <Style TargetType="PasswordBox"><Setter Property="Foreground" Value="#FFF4F1FA"/><Setter Property="Background" Value="#FF101017"/><Setter Property="BorderBrush" Value="#FF393947"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="10,8"/></Style>
+  </Application.Resources>
+</Application>

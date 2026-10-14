@@ -1,0 +1,244 @@
+using Sbroenne.WindowsMcp.Automation;
+using Sbroenne.WindowsMcp.Models;
+
+namespace Sbroenne.WindowsMcp.Tests.Integration.ChromiumBrowser;
+
+[Collection("ChromiumBrowser")]
+[Trait("Category", "RequiresDesktop")]
+[Trait("Category", "ChromiumBrowser")]
+public sealed class ChromiumLocalPageTests : IClassFixture<ChromiumReadOnlySessionFixture>
+{
+    private const int QueryTimeoutMs = 5000;
+
+    // Content that only appears in response to an interaction needs a larger budget than content
+    // that is already on screen: the click has to round-trip through the page and then propagate
+    // into the accessibility tree. EdgePublicPageTests already uses this same 20s budget.
+    private const int PostInteractionTimeoutMs = 20000;
+    private const string SearchInputName = "Docs Search";
+    private const string SignInButtonName = "Sign in";
+    private const string SignedOutStatus = "Signed out";
+    private const string FocusedButtonMessage = "Sign in button focused";
+
+    private readonly ChromiumReadOnlySessionFixture _readOnlySessions;
+
+    public ChromiumLocalPageTests(ChromiumReadOnlySessionFixture readOnlySessions)
+    {
+        _readOnlySessions = readOnlySessions;
+    }
+
+    [SkippableTheory]
+    [InlineData(ChromiumBrowserKind.Edge)]
+    [InlineData(ChromiumBrowserKind.Chrome)]
+    public async Task Find_LocalChromiumPage_PrimaryNavigation_IsDiscoverable(ChromiumBrowserKind browser)
+    {
+        ChromiumBrowserSession.SkipUnlessSupported(browser);
+
+        var session = _readOnlySessions.GetSession(browser);
+        using var harness = new ChromiumAutomationHarness();
+
+        var result = await harness.AutomationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = session.WindowHandleString,
+            Name = "Primary navigation",
+            TimeoutMs = QueryTimeoutMs,
+        });
+
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+    }
+
+    [SkippableTheory]
+    [InlineData(ChromiumBrowserKind.Edge)]
+    [InlineData(ChromiumBrowserKind.Chrome)]
+    public async Task Find_LocalChromiumPage_SearchInputByAriaLabel_ReturnsEdit(ChromiumBrowserKind browser)
+    {
+        ChromiumBrowserSession.SkipUnlessSupported(browser);
+
+        var session = _readOnlySessions.GetSession(browser);
+        using var harness = new ChromiumAutomationHarness();
+
+        var result = await harness.AutomationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = session.WindowHandleString,
+            Name = SearchInputName,
+            ControlType = "Edit",
+            TimeoutMs = QueryTimeoutMs,
+        });
+
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+        Assert.Equal("Edit", result.Items![0].Type);
+    }
+
+    [SkippableTheory]
+    [InlineData(ChromiumBrowserKind.Edge)]
+    [InlineData(ChromiumBrowserKind.Chrome)]
+    public async Task Find_LocalChromiumPage_SignInButtonByAriaLabel_ReturnsButton(ChromiumBrowserKind browser)
+    {
+        ChromiumBrowserSession.SkipUnlessSupported(browser);
+
+        var session = _readOnlySessions.GetSession(browser);
+        using var harness = new ChromiumAutomationHarness();
+
+        var result = await harness.AutomationService.FindElementsAsync(new ElementQuery
+        {
+            WindowHandle = session.WindowHandleString,
+            Name = SignInButtonName,
+            ControlType = "Button",
+            TimeoutMs = QueryTimeoutMs,
+        });
+
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+        Assert.Equal("Button", result.Items![0].Type);
+    }
+
+    [SkippableTheory]
+    [InlineData(ChromiumBrowserKind.Edge)]
+    [InlineData(ChromiumBrowserKind.Chrome)]
+    public async Task Type_LocalChromiumPage_SearchInput_ReadsBackTypedValue(ChromiumBrowserKind browser)
+    {
+        ChromiumBrowserSession.SkipUnlessSupported(browser);
+
+        using var session = ChromiumBrowserSession.LaunchLocalPage(browser);
+        using var harness = new ChromiumAutomationHarness();
+
+        const string expectedText = "Lambert local query";
+
+        var typeResult = await harness.AutomationService.ObserveAndTypeAsync(
+            CreateLocalPageQuery(session.WindowHandleString, SearchInputName, "Edit"),
+            expectedText,
+            clearFirst: true);
+
+        Assert.True(typeResult.Success, $"Type failed: {typeResult.ErrorMessage}");
+
+        var searchInput = await FindSingleElementAsync(harness, session.WindowHandleString, SearchInputName, "Edit");
+        var readResult = await harness.AutomationService.GetTextAsync(searchInput.Id, session.WindowHandleString, includeChildren: false);
+
+        Assert.True(readResult.Success, $"Read failed: {readResult.ErrorMessage}");
+        Assert.Equal(expectedText, readResult.Text);
+    }
+
+    [SkippableTheory]
+    [InlineData(ChromiumBrowserKind.Edge)]
+    [InlineData(ChromiumBrowserKind.Chrome)]
+    public async Task Click_LocalChromiumPage_SignInButton_RevealsFocusedContent(ChromiumBrowserKind browser)
+    {
+        ChromiumBrowserSession.SkipUnlessSupported(browser);
+
+        using var session = ChromiumBrowserSession.LaunchLocalPage(browser);
+        using var harness = new ChromiumAutomationHarness();
+
+        var clickResult = await harness.AutomationService.ObserveAndClickAsync(
+            CreateLocalPageQuery(session.WindowHandleString, SignInButtonName, "Button"));
+
+        Assert.True(clickResult.Success, $"Click failed: {clickResult.ErrorMessage}");
+
+        var focusMessage = await FindSingleElementAsync(
+            harness,
+            session.WindowHandleString,
+            FocusedButtonMessage,
+            "Text",
+            PostInteractionTimeoutMs);
+        var readResult = await harness.AutomationService.GetTextAsync(focusMessage.Id, session.WindowHandleString, includeChildren: false);
+
+        Assert.True(readResult.Success, $"Read failed: {readResult.ErrorMessage}");
+        var diagnostic = readResult.Text == FocusedButtonMessage
+            ? string.Empty
+            : await harness.DescribeObservedElementAsync(focusMessage.Id);
+        Assert.True(readResult.Text == FocusedButtonMessage,
+            $"Expected '{FocusedButtonMessage}', read '{readResult.Text}'. " +
+            $"Discovery name='{focusMessage.Name}', window={session.WindowHandleString}. {diagnostic}");
+    }
+
+    [SkippableTheory]
+    [InlineData(ChromiumBrowserKind.Edge)]
+    [InlineData(ChromiumBrowserKind.Chrome)]
+    public async Task Read_LocalChromiumPage_InitialStatus_ReturnsSignedOut(ChromiumBrowserKind browser)
+    {
+        ChromiumBrowserSession.SkipUnlessSupported(browser);
+
+        var session = _readOnlySessions.GetSession(browser);
+        using var harness = new ChromiumAutomationHarness();
+
+        var statusElement = await FindSingleElementAsync(harness, session.WindowHandleString, SignedOutStatus, "Text");
+        var readResult = await harness.AutomationService.GetTextAsync(statusElement.Id, session.WindowHandleString, includeChildren: false);
+
+        Assert.True(readResult.Success, $"Read failed: {readResult.ErrorMessage}");
+        Assert.Equal(SignedOutStatus, readResult.Text);
+    }
+
+    [SkippableTheory]
+    [InlineData(ChromiumBrowserKind.Edge)]
+    [InlineData(ChromiumBrowserKind.Chrome)]
+    public async Task Read_LocalChromiumPage_ArticleMode_ReturnsCleanMainContent(ChromiumBrowserKind browser)
+    {
+        ChromiumBrowserSession.SkipUnlessSupported(browser);
+
+        var session = _readOnlySessions.GetSession(browser);
+        using var harness = new ChromiumAutomationHarness();
+
+        var readResult = await harness.AutomationService.GetTextAsync(
+            elementId: null,
+            windowHandle: session.WindowHandleString,
+            includeChildren: false,
+            mode: TextExtractionMode.Article);
+
+        Assert.True(readResult.Success, $"Read failed: {readResult.ErrorMessage}");
+        Assert.False(string.IsNullOrWhiteSpace(readResult.Text), "Article text should not be empty.");
+
+        var article = readResult.Text!;
+
+        // Main content is present.
+        Assert.Contains("Chromium browser smoke page", article, StringComparison.Ordinal);
+        Assert.Contains("Getting started", article, StringComparison.Ordinal);
+        Assert.Contains("official guide", article, StringComparison.Ordinal); // visible link text is kept
+
+        // Lightweight markdown structure survives.
+        Assert.Contains("# ", article, StringComparison.Ordinal); // at least one heading marker
+        Assert.Contains("- Install the runtime", article, StringComparison.Ordinal); // list bullet
+
+        // Inline link URLs are stripped.
+        Assert.DoesNotContain("https://example.com", article, StringComparison.Ordinal);
+
+        // Navigation chrome (outside <main>) is excluded.
+        Assert.DoesNotContain("Pricing", article, StringComparison.Ordinal);
+
+        // Complementary rail (aria complementary landmark inside <main>) is excluded.
+        Assert.DoesNotContain("Complementary rail link", article, StringComparison.Ordinal);
+    }
+
+    private static ElementQuery CreateLocalPageQuery(
+        string windowHandle,
+        string name,
+        string controlType,
+        int? timeoutMs = null)
+    {
+        return new ElementQuery
+        {
+            WindowHandle = windowHandle,
+            Name = name,
+            ControlType = controlType,
+            TimeoutMs = timeoutMs ?? QueryTimeoutMs,
+        };
+    }
+
+    private static async Task<UIElementCompact> FindSingleElementAsync(
+        ChromiumAutomationHarness harness,
+        string windowHandle,
+        string name,
+        string controlType,
+        int? timeoutMs = null)
+    {
+        var result = await harness.AutomationService.FindElementsAsync(
+            CreateLocalPageQuery(windowHandle, name, controlType, timeoutMs));
+
+        Assert.True(result.Success, $"Find failed: {result.ErrorMessage}");
+        Assert.NotNull(result.Items);
+        Assert.NotEmpty(result.Items!);
+        return result.Items![0];
+    }
+}

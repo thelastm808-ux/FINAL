@@ -1,0 +1,249 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using Sbroenne.WindowsMcp.Native;
+using UIA = Interop.UIAutomationClient;
+
+namespace Sbroenne.WindowsMcp.Automation;
+
+/// <summary>
+/// Text operations for UI Automation service.
+/// </summary>
+public sealed partial class UIAutomationService
+{
+    /// <inheritdoc/>
+    public Task<UIAutomationResult> GetTextAsync(string? elementId, string? windowHandle, bool includeChildren, CancellationToken cancellationToken = default)
+        => GetTextAsync(elementId, windowHandle, includeChildren, TextExtractionMode.Raw, cancellationToken);
+
+    /// <summary>
+    /// Extracts text from an element or window, either as raw aggregated text or as clean article text.
+    /// </summary>
+    /// <param name="elementId">Optional stable element id to read directly.</param>
+    /// <param name="windowHandle">Window handle used when no element id is supplied.</param>
+    /// <param name="includeChildren">Whether to aggregate descendant text (raw mode only).</param>
+    /// <param name="mode">Raw aggregation or clean article extraction.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<UIAutomationResult> GetTextAsync(string? elementId, string? windowHandle, bool includeChildren, TextExtractionMode mode, CancellationToken cancellationToken = default)
+    {
+        var stopwatch = Stopwatch.StartNew();
+
+        if (windowHandle is not null &&
+            (!WindowHandleParser.TryParse(windowHandle, out var hwnd) || hwnd == nint.Zero))
+        {
+            return UIAutomationResult.CreateFailure(
+                "get_text", UIAutomationErrorType.InvalidParameter,
+                "windowHandle must be a nonzero decimal window handle.", CreateDiagnostics(stopwatch));
+        }
+
+        if (elementId is not null && string.IsNullOrWhiteSpace(elementId))
+        {
+            return UIAutomationResult.CreateFailure(
+                "get_text", UIAutomationErrorType.InvalidParameter,
+                "elementId must not be empty. Omit it only for a whole-window read.", CreateDiagnostics(stopwatch));
+        }
+
+        try
+        {
+            return await _staThread.ExecuteAsync(() =>
+            {
+                UIA.IUIAutomationElement? targetElement;
+
+                if (!string.IsNullOrEmpty(elementId))
+                {
+                    targetElement = ElementIdGenerator.ResolveToAutomationElement(elementId);
+                    if (targetElement == null)
+                    {
+                        return UIAutomationResult.CreateFailure(
+                            "get_text",
+                            UIAutomationErrorType.ElementNotFound,
+                            $"Element with ID '{elementId}' not found.",
+                            CreateDiagnostics(stopwatch));
+                    }
+                    if (!string.IsNullOrWhiteSpace(windowHandle) &&
+                        (!nint.TryParse(windowHandle, out var requestedHandle) || requestedHandle == nint.Zero ||
+                        !IsRequestedWindowHandleCompatible(ResolveElementWindowHandle(targetElement), requestedHandle)))
+                    {
+                        return UIAutomationResult.CreateFailure("get_text", UIAutomationErrorType.WrongTargetWindow,
+                            "The resolved element does not belong to the requested window.");
+                    }
+                }
+                else
+                {
+                    targetElement = GetRootElement(windowHandle);
+                    if (targetElement == null)
+                    {
+                        return UIAutomationResult.CreateFailure(
+                            "get_text",
+                            UIAutomationErrorType.WindowNotFound,
+                            windowHandle is null ? "No foreground window found." : "The requested window was not found.",
+                            CreateDiagnostics(stopwatch));
+                    }
+                }
+
+                using var observation = DiscoveryObservation.Create(Uia.Automation, targetElement);
+                if (mode == TextExtractionMode.Raw && !includeChildren &&
+                    targetElement.GetControlTypeId() is UIA3ControlTypeIds.Edit or UIA3ControlTypeIds.Spinner)
+                {
+                    var fieldValue = ReadEditableValue(targetElement);
+                    return fieldValue is not null
+                        ? UIAutomationResult.CreateSuccessWithText("get_text", fieldValue, CreateDiagnostics(stopwatch))
+                        : UIAutomationResult.CreateFailure("get_text", UIAutomationErrorType.PatternNotSupported,
+                            "The field does not expose a trustworthy single value. Read segmented fields through their child controls; the parent value may be out of date. A label is not a value.",
+                            CreateDiagnostics(stopwatch),
+                            "Inspect this field's child controls with ui_snapshot parentElementId, or use a screenshot to check the value.");
+                }
+
+                var text = mode == TextExtractionMode.Article
+                    ? ExtractArticleText(targetElement)
+                    : ExtractText(targetElement, includeChildren);
+
+                return UIAutomationResult.CreateSuccessWithText("get_text", text, CreateDiagnostics(stopwatch));
+            }, cancellationToken);
+        }
+        catch (COMException ex)
+        {
+            LogGetTextError(_logger, elementId, ex);
+            return UIAutomationResult.CreateFailure(
+                "get_text",
+                COMExceptionHelper.GetErrorType(ex),
+                COMExceptionHelper.GetErrorMessage(ex, "GetText"),
+                CreateDiagnostics(stopwatch));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            LogGetTextError(_logger, elementId, ex);
+            return UIAutomationResult.CreateFailure(
+                "get_text",
+                UIAutomationErrorType.InternalError,
+                $"An error occurred: {ex.Message}",
+                CreateDiagnostics(stopwatch));
+        }
+    }
+
+    private static bool CanReadDirectFieldValue(UIA.IUIAutomationElement element, Action? checkDeadline = null)
+    {
+        if (ExecuteSearchProviderCall(() => element.CurrentControlType, checkDeadline) != UIA3ControlTypeIds.Edit ||
+            !string.Equals(ExecuteSearchProviderCall(() => element.CurrentFrameworkId, checkDeadline), "Chrome", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        // Chromium can retain an old parent value after date segments and the submitted value change.
+        // Do not reconstruct a date from localized names or trust that parent's ValuePattern.
+        var walker = UIA3Automation.Instance.Automation.RawViewWalker;
+        var segmented = false;
+        var outcome = BoundedSearchTraversal.Walk(
+            element,
+            walker.GetFirstChildElement,
+            walker.GetNextSiblingElement,
+            child => ExecuteSearchProviderCall(() => child.CurrentIsControlElement != 0, checkDeadline),
+            (child, _) => segmented = ExecuteSearchProviderCall(() => child.CurrentControlType == UIA3ControlTypeIds.Spinner, checkDeadline),
+            maxNodes: 16,
+            maxDepth: 1,
+            CancellationToken.None,
+            checkDeadline);
+        return !segmented && !outcome.LimitReached;
+    }
+
+    private static string ExtractText(UIA.IUIAutomationElement element, bool includeChildren)
+    {
+        // Try TextPattern first
+        var canReadDirectValue = CanReadDirectFieldValue(element);
+        var text = canReadDirectValue ? element.GetText() : null;
+        if (text is not null && !includeChildren)
+        {
+            return text;
+        }
+
+        // Try ValuePattern
+        var value = canReadDirectValue ? element.TryGetValue() : null;
+        if (!string.IsNullOrEmpty(value) && !includeChildren)
+        {
+            return value;
+        }
+
+        // Fall back to Name
+        var name = element.GetName();
+        if (!string.IsNullOrEmpty(name) && !includeChildren)
+        {
+            return name;
+        }
+
+        // If includeChildren, aggregate all text from descendants
+        if (includeChildren)
+        {
+            var allText = new List<string>();
+            if (!string.IsNullOrEmpty(name))
+            {
+                allText.Add(name);
+            }
+
+            if (!string.IsNullOrEmpty(value) && value != name)
+            {
+                allText.Add(value);
+            }
+
+            if (!string.IsNullOrEmpty(text) && text != name && text != value)
+            {
+                allText.Add(text);
+            }
+
+            CollectChildText(element, allText);
+            return string.Join(" ", allText);
+        }
+
+        return name ?? value ?? text ?? "";
+    }
+
+    private static void CollectChildText(UIA.IUIAutomationElement parent, List<string> textParts)
+    {
+        var condition = UIA3Automation.Instance.CreatePropertyCondition(UIA3PropertyIds.IsOffscreen, false);
+        var children = parent.FindAll(UIA.TreeScope.TreeScope_Children, condition);
+
+        if (children == null)
+        {
+            return;
+        }
+
+        for (var i = 0; i < children.Length && textParts.Count < 1000; i++)
+        {
+            try
+            {
+                var child = children.GetElement(i);
+                if (child == null)
+                {
+                    continue;
+                }
+
+                var childText = GetElementText(child);
+                if (!string.IsNullOrWhiteSpace(childText) && !textParts.Contains(childText))
+                {
+                    textParts.Add(childText);
+                }
+
+                CollectChildText(child, textParts);
+            }
+            catch
+            {
+                // Element went away, skip it
+            }
+        }
+    }
+
+    private static string? GetElementText(UIA.IUIAutomationElement element)
+    {
+        try
+        {
+            var value = CanReadDirectFieldValue(element) ? element.TryGetValue() : null;
+            if (!string.IsNullOrEmpty(value))
+            {
+                return value;
+            }
+
+            return element.GetName();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}
